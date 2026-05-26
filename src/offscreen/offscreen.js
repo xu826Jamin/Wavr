@@ -93,6 +93,7 @@ async function init() {
 
     debug('ready');
     chrome.runtime.sendMessage({ type: 'GET_GESTURE_MAP' }, (response) => {
+      if (chrome.runtime.lastError) { debug('GET_GESTURE_MAP failed:', chrome.runtime.lastError.message); return; }
       if (response?.gestureMap)                gestureMap     = response.gestureMap;
       deadZoneAnchor = response?.deadZoneAnchor ?? { x: 0.5, y: 0.5 };
       if (response?.deadZoneRadius != null)    deadZoneRadius = response.deadZoneRadius;
