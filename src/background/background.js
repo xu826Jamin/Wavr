@@ -257,19 +257,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           target: { tabId: target.id },
           func: (action, amount) => {
             function getScrollTarget() {
-              const candidates = Array.from(document.querySelectorAll('*'));
-              let best = null;
-              let bestScore = 0;
-              for (const el of candidates) {
-                const scrollable = el.scrollHeight - el.clientHeight;
-                if (scrollable > bestScore) {
-                  const style = window.getComputedStyle(el);
-                  const overflow = style.overflow + style.overflowY;
-                  if (overflow.includes('auto') || overflow.includes('scroll')) {
-                    bestScore = scrollable;
-                    best = el;
-                  }
-                }
+              function isScrollable(el) {
+                const s = window.getComputedStyle(el);
+                return /auto|scroll/.test(s.overflow + s.overflowY);
+              }
+              // 1. Browser's own scrolling element (covers most pages)
+              const se = document.scrollingElement;
+              if (se && se.scrollHeight - se.clientHeight > 0) return se;
+              // 2. Nearest scrollable ancestor of the focused element
+              let el = document.activeElement;
+              for (let i = 0; i < 5 && el && el !== document.body; i++, el = el.parentElement) {
+                if (el.scrollHeight - el.clientHeight > 0 && isScrollable(el)) return el;
+              }
+              // 3. Direct children of body only (avoids full DOM scan)
+              let best = null, bestScore = 0;
+              for (const child of document.body.children) {
+                const score = child.scrollHeight - child.clientHeight;
+                if (score > bestScore && isScrollable(child)) { bestScore = score; best = child; }
               }
               return best || document.documentElement;
             }
