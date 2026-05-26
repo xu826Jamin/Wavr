@@ -170,6 +170,8 @@
       min-height: 40px;
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
       position: relative;
       overflow: hidden;
       transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1);
@@ -647,6 +649,18 @@
     ctx.arc(px, py, 5, 0, Math.PI * 2);
     ctx.fillStyle = dotColor;
     ctx.fill();
+
+    // ── Hand present indicator in gesture bar ────────────────────
+    if (gestureBar && gestureBar.querySelector('.gesture-idle-label')) {
+      const label = gestureBar.querySelector('.gesture-idle-label');
+      if (state.waitingForReset) {
+        label.textContent = '↩ return to center';
+        label.style.color = '#f59e0b';
+      } else {
+        label.textContent = '● detecting';
+        label.style.color = '#4ade80';
+      }
+    }
 
     // ── Buffer bar ───────────────────────────────────────────────
     const segCount = state.bufferMax;
