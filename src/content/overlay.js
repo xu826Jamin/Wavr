@@ -291,6 +291,31 @@
       100% { transform: scale(1); }
     }
     .cursor.clicking .cursor-svg { animation: gs-click 0.22s ease-out forwards; }
+    .cursor-dwell {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      top: -4px;
+      left: -4px;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .cursor.dwelling .cursor-dwell { opacity: 1; }
+    .cursor-dwell circle {
+      fill: none;
+      stroke: rgba(74,222,128,0.75);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 78.5;
+      stroke-dashoffset: 78.5;
+      transform-origin: 14px 14px;
+      transform: rotate(-90deg);
+    }
+    @keyframes dwell-fill {
+      from { stroke-dashoffset: 78.5; }
+      to   { stroke-dashoffset: 0; }
+    }
+    .cursor.dwelling .cursor-dwell circle { animation: dwell-fill 0.2s linear forwards; }
   `;
 
   let cursorHost    = null;
@@ -324,7 +349,18 @@
     path.setAttribute('d', 'M 0 0 L 0 28 L 8 20.5 L 11.5 29 L 15.5 27.5 L 12 19 L 21 19 Z');
 
     svg.appendChild(path);
+
+    const dwellSvg = document.createElementNS(NS, 'svg');
+    dwellSvg.setAttribute('class', 'cursor-dwell');
+    dwellSvg.setAttribute('viewBox', '0 0 28 28');
+    const dwellCircle = document.createElementNS(NS, 'circle');
+    dwellCircle.setAttribute('cx', '14');
+    dwellCircle.setAttribute('cy', '14');
+    dwellCircle.setAttribute('r', '12.5');
+    dwellSvg.appendChild(dwellCircle);
+
     cursorDot.appendChild(svg);
+    cursorDot.appendChild(dwellSvg);
     sh.append(st, cursorDot);
     document.body.appendChild(cursorHost);
   }
@@ -347,6 +383,12 @@
     const el = document.elementFromPoint(cursorCX, cursorCY);
     cursorDot.classList.toggle('hovering', isClickable(el));
 
+    if (state.clicking) {
+      if (!cursorDot.classList.contains('dwelling')) cursorDot.classList.add('dwelling');
+    } else {
+      cursorDot.classList.remove('dwelling');
+    }
+
     if (state.clicking && !cursorDot.classList.contains('clicking')) {
       cursorDot.classList.add('clicking');
       setTimeout(() => cursorDot?.classList.remove('clicking'), 350);
@@ -363,7 +405,7 @@
       el.dispatchEvent(new MouseEvent('click',     { bubbles: true, cancelable: true, clientX: sx, clientY: sy }));
     }
     if (cursorDot) {
-      cursorDot.classList.remove('clicking');
+      cursorDot.classList.remove('dwelling', 'clicking');
       void cursorDot.offsetWidth;
       cursorDot.classList.add('clicking');
       setTimeout(() => cursorDot?.classList.remove('clicking'), 350);
@@ -371,7 +413,7 @@
   }
 
   function hideCursor() {
-    if (cursorDot) cursorDot.classList.remove('active', 'clicking', 'hovering');
+    if (cursorDot) cursorDot.classList.remove('active', 'clicking', 'dwelling', 'hovering');
   }
 
   function setMirrorX(mirrored) {
