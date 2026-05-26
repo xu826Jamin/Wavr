@@ -170,9 +170,28 @@
       min-height: 40px;
       display: flex;
       align-items: center;
+      position: relative;
+      overflow: hidden;
       transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1);
     }
     .gesture-bar.dim { color: #2a2a2a; }
+    .cooldown-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: rgba(74,222,128,0.5);
+      transform-origin: left;
+      pointer-events: none;
+    }
+    @keyframes cooldownDrain {
+      from { transform: scaleX(1); }
+      to   { transform: scaleX(0); }
+    }
+    .cooldown-bar.draining {
+      animation: cooldownDrain 600ms linear forwards;
+    }
     .gesture-idle-label {
       font-size: 9px;
       letter-spacing: 1px;
@@ -728,7 +747,11 @@
       chrome.runtime.sendMessage({ type: 'OPEN_URL', url: `https://twitter.com/intent/tweet?text=${text}&url=${url}` });
     });
 
-    gestureBar.append(txt, shareBtn);
+    const cooldownBar = document.createElement('div');
+    cooldownBar.className = 'cooldown-bar';
+    gestureBar.append(txt, shareBtn, cooldownBar);
+    void cooldownBar.offsetWidth;
+    cooldownBar.classList.add('draining');
 
     clearTimeout(gestureTimer);
     gestureTimer = setTimeout(() => {
