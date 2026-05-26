@@ -305,13 +305,17 @@ async function injectIntoExistingTabs() {
 }
 
 function registerKeepAliveAlarm() {
-  chrome.alarms.create('keepAlive', { periodInMinutes: 0.4 });
+  chrome.alarms.create('keepAlive', { periodInMinutes: 0.25 });
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== 'keepAlive') return;
   const exists = await chrome.offscreen.hasDocument();
-  if (!exists) chrome.alarms.clear('keepAlive');
+  if (!exists) {
+    chrome.alarms.clear('keepAlive');
+    broadcastToTabs({ type: 'HIDE_OVERLAY' });
+    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
+  }
 });
 
 chrome.runtime.onInstalled.addListener(() => {
