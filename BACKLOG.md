@@ -26,9 +26,9 @@ Generated from Phase 0 findings. Every item is verified against source before li
 
 ### P2 — Polish (noticed in 30 min; UX friction; code hygiene)
 
-- [ ] [P2-001] **Dead function `startCamera()` in overlay.js** — `overlay.js:488-499` defines `startCamera(placeholder)` which opens a second camera stream. It is never called — per CLAUDE.md Rule 6, all video comes from `VIDEO_FRAME` relay. The function confuses future developers and its presence caused a real bug historically. Fix: delete the function. Source: Phase 0.7; CLAUDE.md Rule 6.
+- [x] [P2-001] **Dead function `startCamera()` in overlay.js** — DONE 3c15c8b — `overlay.js:488-499` defines `startCamera(placeholder)` which opens a second camera stream. It is never called — per CLAUDE.md Rule 6, all video comes from `VIDEO_FRAME` relay. The function confuses future developers and its presence caused a real bug historically. Fix: delete the function. Source: Phase 0.7; CLAUDE.md Rule 6.
 
-- [ ] [P2-002] **Unused variables `gestureOrigin` and `cursorZone` in preview-detect.js** — These are the 2 of the 3 baseline lint errors. `gestureOrigin` (line 22) is assigned at gesture fire time but never read back. `cursorZone` (line 26) is stored from storage but never consumed in drawing. Both are dead state. Fix: remove both variables and their assignment/storage sites. Source: Phase 0.5 lint baseline.
+- [x] [P2-002] **Unused variables `gestureOrigin` and `cursorZone` in preview-detect.js** — DONE 762919d — These are the 2 of the 3 baseline lint errors. `gestureOrigin` (line 22) is assigned at gesture fire time but never read back. `cursorZone` (line 26) is stored from storage but never consumed in drawing. Both are dead state. Fix: remove both variables and their assignment/storage sites. Source: Phase 0.5 lint baseline.
 
 - [ ] [P2-003] **`shared/gestures.js` exports not consumed** — The file exports `GESTURES`, `ACTIONS`, `MESSAGES`, `DEFAULT_GESTURE_MAP`. None of these are imported by any active file (background.js, offscreen.js, overlay.js, popup.js, preview-detect.js all define their own inline constants). The file is cargo-cult dead code. Verify: `grep -rn "from.*gestures\|require.*gestures" src/`. Fix: delete the file (or keep for documentation — document decision). Source: Phase 0.7.
 
