@@ -282,8 +282,6 @@ function processFrame() {
       originX: activeOrigin?.x,
       originY: activeOrigin?.y,
       deadZoneRadius,
-      cursorZone,
-      cursorMirrorX,
     }).catch(() => {});
   }
 
