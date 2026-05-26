@@ -12,6 +12,7 @@ const ACTION_LABELS = {
   SCROLL_UP: 'Scroll up', SCROLL_DOWN: 'Scroll down',
   GO_BACK: 'Go back', GO_FORWARD: 'Go forward',
   SCROLL_TOP: 'Scroll to top', SCROLL_BOTTOM: 'Scroll to bottom',
+  SCROLL_UP_PAGE: 'Page up', SCROLL_DOWN_PAGE: 'Page down',
   NEW_TAB: 'New tab', CLOSE_TAB: 'Close tab',
   NONE: 'Do nothing',
 };

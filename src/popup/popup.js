@@ -204,6 +204,7 @@ const ACTION_SHORT = {
   SCROLL_UP: 'Scroll ↑', SCROLL_DOWN: 'Scroll ↓',
   GO_BACK: '← Back', GO_FORWARD: 'Forward →',
   SCROLL_TOP: 'Top', SCROLL_BOTTOM: 'Bottom',
+  SCROLL_UP_PAGE: 'Pg ↑', SCROLL_DOWN_PAGE: 'Pg ↓',
   NEW_TAB: 'New tab', CLOSE_TAB: 'Close tab', NONE: '—',
 };
 const ACCORD_GROUPS = [
@@ -578,6 +579,7 @@ const MOCK_ACTION_LABELS = {
   SCROLL_UP: 'Scroll up', SCROLL_DOWN: 'Scroll down',
   GO_BACK: 'Go back', GO_FORWARD: 'Go forward',
   SCROLL_TOP: 'Scroll to top', SCROLL_BOTTOM: 'Scroll to bottom',
+  SCROLL_UP_PAGE: 'Page up', SCROLL_DOWN_PAGE: 'Page down',
   NEW_TAB: 'New tab', CLOSE_TAB: 'Close tab', NONE: 'Do nothing',
 };
 
@@ -615,14 +617,14 @@ function runMockStep() {
   navBack.classList.remove('lit');
   navFwd.classList.remove('lit');
 
-  if (action === 'SCROLL_UP' || action === 'SCROLL_TOP') {
+  if (action === 'SCROLL_UP' || action === 'SCROLL_TOP' || action === 'SCROLL_UP_PAGE') {
     track.style.transition = 'none';
     track.style.transform  = 'translateY(-52px)';
     setTimeout(() => {
       track.style.transition = 'transform 0.52s cubic-bezier(0.4,0,0.2,1)';
       track.style.transform  = 'translateY(0)';
     }, 20);
-  } else if (action === 'SCROLL_DOWN' || action === 'SCROLL_BOTTOM') {
+  } else if (action === 'SCROLL_DOWN' || action === 'SCROLL_BOTTOM' || action === 'SCROLL_DOWN_PAGE') {
     track.style.transition = 'none';
     track.style.transform  = 'translateY(0)';
     setTimeout(() => {
@@ -719,6 +721,7 @@ const PRESET_CHIP_LABELS = {
   SCROLL_UP: 'Scroll up', SCROLL_DOWN: 'Scroll down',
   GO_BACK: 'Go back', GO_FORWARD: 'Go forward',
   SCROLL_TOP: 'To top', SCROLL_BOTTOM: 'To bottom',
+  SCROLL_UP_PAGE: 'Page up', SCROLL_DOWN_PAGE: 'Page down',
   NEW_TAB: 'New tab', CLOSE_TAB: 'Close tab', NONE: 'Nothing',
 };
 

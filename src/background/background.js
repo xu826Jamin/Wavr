@@ -330,6 +330,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               else if (action === 'GO_FORWARD') history.forward();
               else if (action === 'SCROLL_TOP') t.scrollTo({ top: 0, behavior: 'smooth' });
               else if (action === 'SCROLL_BOTTOM') t.scrollTo({ top: t.scrollHeight, behavior: 'smooth' });
+              else if (action === 'SCROLL_UP_PAGE') t.scrollBy({ top: -window.innerHeight * 0.85, behavior: 'smooth' });
+              else if (action === 'SCROLL_DOWN_PAGE') t.scrollBy({ top: window.innerHeight * 0.85, behavior: 'smooth' });
             },
             args: [action, amount]
           }).catch(() => {});
