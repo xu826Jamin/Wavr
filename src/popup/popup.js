@@ -282,7 +282,7 @@ document.getElementById('shareWavrBtn')?.addEventListener('click', () => {
 document.getElementById('exportConfigBtn')?.addEventListener('click', () => {
   chrome.storage.local.get(['gestureMap'], (result) => {
     const map  = result.gestureMap || {};
-    const code = btoa(JSON.stringify(map));
+    const code = JSON.stringify(map, null, 2);
     navigator.clipboard.writeText(code).then(() => {
       const btn = document.getElementById('exportConfigBtn');
       const orig = btn.textContent;
@@ -308,7 +308,9 @@ document.getElementById('importApplyBtn')?.addEventListener('click', () => {
   const raw = document.getElementById('importConfigInput').value.trim();
   const err = document.getElementById('importErr');
   try {
-    const map = JSON.parse(atob(raw));
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { parsed = JSON.parse(atob(raw)); }
+    const map = parsed;
     if (typeof map !== 'object' || Array.isArray(map)) throw new Error('invalid');
     chrome.storage.local.get(['gestureMap'], (result) => {
       const merged = { ...(result.gestureMap || {}), ...map };
