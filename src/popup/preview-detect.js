@@ -19,11 +19,9 @@ let gestureRecognizer = null;
 let lastGestureTime   = 0;
 const positionBuffer  = [];
 const wristTrail      = [];
-let gestureOrigin     = null;
 let waitingForReset   = false;
 let deadZoneAnchor    = { x: 0.5, y: 0.5 };
 let pickModeActive    = false;
-let cursorZone        = { cx: 0.5, cy: 0.5, w: 0.6, h: 0.6 };
 let cursorMirrorX     = false;
 let gestureMap = {
   open_swipe_up: 'SCROLL_UP', open_swipe_down: 'SCROLL_DOWN',
@@ -58,11 +56,10 @@ function applyMirrorX(mirrored) {
   if (cursorVideoEl) cursorVideoEl.style.transform = mirrored ? 'scaleX(-1)' : '';
 }
 
-chrome.storage.local.get(['gestureMap', 'deadZoneAnchor', 'deadZoneRadius', 'cursorZone', 'cursorMirrorX'], (result) => {
+chrome.storage.local.get(['gestureMap', 'deadZoneAnchor', 'deadZoneRadius', 'cursorMirrorX'], (result) => {
   if (result.gestureMap)   gestureMap = result.gestureMap;
   if (result.deadZoneAnchor) applyAnchor(result.deadZoneAnchor, false);
   if (result.deadZoneRadius != null) applyZoneSize(result.deadZoneRadius, false);
-  if (result.cursorZone)   cursorZone = result.cursorZone;
   if (result.cursorMirrorX !== undefined) applyMirrorX(result.cursorMirrorX);
 });
 
@@ -71,7 +68,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.gestureMap)    gestureMap = changes.gestureMap.newValue;
   if (changes.deadZoneAnchor) applyAnchor(changes.deadZoneAnchor.newValue, false);
   if (changes.deadZoneRadius != null) applyZoneSize(changes.deadZoneRadius.newValue, false);
-  if (changes.cursorZone)    cursorZone = changes.cursorZone.newValue;
   if (changes.cursorMirrorX != null) applyMirrorX(changes.cursorMirrorX.newValue);
 });
 
@@ -119,7 +115,6 @@ anchorPickBtn.addEventListener('click', () => {
 
 anchorClearBtn.addEventListener('click', () => {
   applyAnchor({ x: 0.5, y: 0.5 }, true);
-  gestureOrigin = null;
   waitingForReset = false;
 });
 
@@ -404,7 +399,6 @@ function processFrame() {
       const now = Date.now();
       if (gesture !== GESTURES.NONE && now - lastGestureTime > COOLDOWN_MS) {
         lastGestureTime = now;
-        gestureOrigin   = { ...deadZoneAnchor };
         waitingForReset = true;
         positionBuffer.length = 0;
 
