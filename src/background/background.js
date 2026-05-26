@@ -45,6 +45,7 @@ async function createOffscreen() {
       reasons: ['USER_MEDIA'],
       justification: 'Webcam access for hand gesture detection',
     });
+    chrome.alarms.create('keepAlive', { periodInMinutes: 0.4 });
   }
 }
 
@@ -298,5 +299,22 @@ async function injectIntoExistingTabs() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => injectIntoExistingTabs());
-chrome.runtime.onStartup.addListener(()  => injectIntoExistingTabs());
+function registerKeepAliveAlarm() {
+  chrome.alarms.create('keepAlive', { periodInMinutes: 0.4 });
+}
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== 'keepAlive') return;
+  const exists = await chrome.offscreen.hasDocument();
+  if (!exists) chrome.alarms.clear('keepAlive');
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  injectIntoExistingTabs();
+  registerKeepAliveAlarm();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  injectIntoExistingTabs();
+  registerKeepAliveAlarm();
+});
