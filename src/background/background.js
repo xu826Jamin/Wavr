@@ -284,40 +284,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
-        chrome.scripting.executeScript({
-          target: { tabId: target.id },
-          func: (action, amount) => {
-            function getScrollTarget() {
-              function isScrollable(el) {
-                const s = window.getComputedStyle(el);
-                return /auto|scroll/.test(s.overflow + s.overflowY);
+        chrome.storage.local.get(['scrollAmount'], ({ scrollAmount }) => {
+          const amount = Math.max(100, Math.min(1200, scrollAmount ?? 400));
+          chrome.scripting.executeScript({
+            target: { tabId: target.id },
+            func: (action, amount) => {
+              function getScrollTarget() {
+                function isScrollable(el) {
+                  const s = window.getComputedStyle(el);
+                  return /auto|scroll/.test(s.overflow + s.overflowY);
+                }
+                const se = document.scrollingElement;
+                if (se && se.scrollHeight - se.clientHeight > 0) return se;
+                let el = document.activeElement;
+                for (let i = 0; i < 5 && el && el !== document.body; i++, el = el.parentElement) {
+                  if (el.scrollHeight - el.clientHeight > 0 && isScrollable(el)) return el;
+                }
+                let best = null, bestScore = 0;
+                for (const child of document.body.children) {
+                  const score = child.scrollHeight - child.clientHeight;
+                  if (score > bestScore && isScrollable(child)) { bestScore = score; best = child; }
+                }
+                return best || document.documentElement;
               }
-              // 1. Browser's own scrolling element (covers most pages)
-              const se = document.scrollingElement;
-              if (se && se.scrollHeight - se.clientHeight > 0) return se;
-              // 2. Nearest scrollable ancestor of the focused element
-              let el = document.activeElement;
-              for (let i = 0; i < 5 && el && el !== document.body; i++, el = el.parentElement) {
-                if (el.scrollHeight - el.clientHeight > 0 && isScrollable(el)) return el;
-              }
-              // 3. Direct children of body only (avoids full DOM scan)
-              let best = null, bestScore = 0;
-              for (const child of document.body.children) {
-                const score = child.scrollHeight - child.clientHeight;
-                if (score > bestScore && isScrollable(child)) { bestScore = score; best = child; }
-              }
-              return best || document.documentElement;
-            }
-            const t = getScrollTarget();
-            if (action === 'SCROLL_DOWN') t.scrollBy({ top: amount, behavior: 'smooth' });
-            else if (action === 'SCROLL_UP') t.scrollBy({ top: -amount, behavior: 'smooth' });
-            else if (action === 'GO_BACK') history.back();
-            else if (action === 'GO_FORWARD') history.forward();
-            else if (action === 'SCROLL_TOP') t.scrollTo({ top: 0, behavior: 'smooth' });
-            else if (action === 'SCROLL_BOTTOM') t.scrollTo({ top: t.scrollHeight, behavior: 'smooth' });
-          },
-          args: [action, 400]
-        }).catch(() => {});
+              const t = getScrollTarget();
+              if (action === 'SCROLL_DOWN') t.scrollBy({ top: amount, behavior: 'smooth' });
+              else if (action === 'SCROLL_UP') t.scrollBy({ top: -amount, behavior: 'smooth' });
+              else if (action === 'GO_BACK') history.back();
+              else if (action === 'GO_FORWARD') history.forward();
+              else if (action === 'SCROLL_TOP') t.scrollTo({ top: 0, behavior: 'smooth' });
+              else if (action === 'SCROLL_BOTTOM') t.scrollTo({ top: t.scrollHeight, behavior: 'smooth' });
+            },
+            args: [action, amount]
+          }).catch(() => {});
+        });
       }
       });
     });

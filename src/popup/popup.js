@@ -109,13 +109,33 @@ function setAllMirrorX(value, save = false) {
   if (save) chrome.storage.local.set({ cursorMirrorX: value });
 }
 
-chrome.storage.local.get(['gestureMap', 'cursorZone', 'cursorMirrorX', 'cursorTimings', 'achievements'], (result) => {
+chrome.storage.local.get(['gestureMap', 'cursorZone', 'cursorMirrorX', 'cursorTimings', 'achievements', 'scrollAmount'], (result) => {
   applyGestureMap(result.gestureMap || defaults);
   applyCursorZone(result.cursorZone ?? { cx: 0.5, cy: 0.5, w: 0.6, h: 0.6 });
   setAllMirrorX(result.cursorMirrorX ?? false);
   applyTimings(result.cursorTimings);
   applyAchievements(result.achievements);
+  applyScrollAmount(result.scrollAmount ?? 400);
 });
+
+function applyScrollAmount(val) {
+  const slider = document.getElementById('scrollAmountSlider');
+  const label  = document.getElementById('scrollAmountLabel');
+  if (slider) slider.value = val;
+  if (label)  label.textContent = val + ' px';
+}
+
+const scrollSlider = document.getElementById('scrollAmountSlider');
+if (scrollSlider) {
+  scrollSlider.addEventListener('input', () => {
+    const v = parseInt(scrollSlider.value, 10);
+    const label = document.getElementById('scrollAmountLabel');
+    if (label) label.textContent = v + ' px';
+  });
+  scrollSlider.addEventListener('change', () => {
+    chrome.storage.local.set({ scrollAmount: parseInt(scrollSlider.value, 10) });
+  });
+}
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;

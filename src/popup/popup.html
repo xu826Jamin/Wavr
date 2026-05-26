@@ -2903,7 +2903,22 @@
         <h2 class="section-heading reveal" data-reveal-i="0">Settings</h2>
         <p class="section-sub">Map all 16 gesture swipes to actions. Open Palm is expanded by default.</p>
 
-        <div class="settings-card accord-wrap" style="padding:0;margin-top:32px;">
+        <div class="settings-card reveal" data-reveal-i="0" style="margin-top:24px;padding:18px 20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div>
+              <div class="section-eyebrow" style="margin-bottom:2px;">Scroll Speed</div>
+              <div style="font-size:13px;color:#555;">Pixels scrolled per gesture</div>
+            </div>
+            <span id="scrollAmountLabel" style="font-family:'SF Mono',ui-monospace,'Cascadia Code',monospace;font-size:14px;color:#4ade80;font-weight:600;">400 px</span>
+          </div>
+          <input type="range" id="scrollAmountSlider" min="100" max="1200" step="50" value="400"
+            style="width:100%;accent-color:#4ade80;cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#333;margin-top:4px;font-family:'SF Mono',ui-monospace,'Cascadia Code',monospace;">
+            <span>100 px</span><span>1200 px</span>
+          </div>
+        </div>
+
+        <div class="settings-card accord-wrap" style="padding:0;margin-top:16px;">
 
           <!-- Open Palm -->
           <div class="accord-group reveal" data-reveal-i="0">
