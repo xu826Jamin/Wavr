@@ -501,7 +501,7 @@ function frWatchGesture() {
   const obs = new MutationObserver(() => {
     const text = indicator.textContent.trim();
     badge.textContent = text;
-    if (text && !done) {
+    if (text && text !== 'No gesture detected' && !done) {
       done = true;
       obs.disconnect();
       setTimeout(frFinish, 1000);
