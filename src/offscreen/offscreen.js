@@ -256,10 +256,11 @@ function processFrame() {
         const poseEmoji = isPointing ? '☝' : '✌';
 
         if (action !== 'NONE') {
+          const score = topGesture?.score ?? 0;
           chrome.runtime.sendMessage({ type: 'GESTURE_DETECTED', gesture, action });
           chrome.runtime.sendMessage({
             type: 'GESTURE_DISPLAY',
-            label: `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action}`,
+            label: `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
           });
         }
       }
@@ -312,10 +313,11 @@ function processFrame() {
       const action    = gestureMap[mapKey] || 'NONE';
       const poseEmoji = isClosed ? '✊' : isPointing ? '☝' : isVictory ? '✌' : '🖐';
 
+      const score = topGesture?.score ?? 0;
       chrome.runtime.sendMessage({ type: 'GESTURE_DETECTED', gesture, action });
       chrome.runtime.sendMessage({
         type: 'GESTURE_DISPLAY',
-        label: `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action}`,
+        label: `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
       });
       debug('gesture', gesture, '->', action);
     }
