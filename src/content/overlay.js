@@ -488,17 +488,20 @@
     minBtn.className = 'icon-btn';
     minBtn.innerHTML = SVG_MINUS;
     minBtn.title = 'Minimize';
+    minBtn.setAttribute('aria-label', 'Minimize Wavr');
     minBtn.addEventListener('click', () => {
       isMinimized = !isMinimized;
       widget.classList.toggle('minimized', isMinimized);
       minBtn.innerHTML = isMinimized ? SVG_PLUS : SVG_MINUS;
       minBtn.title = isMinimized ? 'Expand' : 'Minimize';
+      minBtn.setAttribute('aria-label', isMinimized ? 'Expand Wavr' : 'Minimize Wavr');
     });
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'icon-btn stop';
     closeBtn.innerHTML = SVG_CLOSE;
     closeBtn.title = 'Stop Wavr';
+    closeBtn.setAttribute('aria-label', 'Stop Wavr');
     closeBtn.addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: 'STOP' });
     });
@@ -523,6 +526,8 @@
     videoEl.muted = true;
     videoEl.playsInline = true;
     videoEl.style.display = 'none';
+    videoEl.setAttribute('aria-label', 'Wavr camera feed for gesture detection');
+    videoEl.setAttribute('aria-hidden', 'true');
 
     canvasEl = document.createElement('canvas');
     canvasCtx = canvasEl.getContext('2d');
@@ -535,6 +540,9 @@
     // Gesture bar
     gestureBar = document.createElement('div');
     gestureBar.className = 'gesture-bar dim';
+    gestureBar.setAttribute('role', 'status');
+    gestureBar.setAttribute('aria-live', 'polite');
+    gestureBar.setAttribute('aria-label', 'Gesture status');
     gestureBar.innerHTML = '<span class="gesture-idle-label">● waiting</span>';
 
     // Settings button
