@@ -44,13 +44,13 @@ Generated from Phase 0 findings. Every item is verified against source before li
 
 ### P3 — Stretch (valuable but not blocking quality bar)
 
-- [ ] [P3-001] **Gesture confidence display in PiP overlay** — Show the raw confidence score next to the gesture label so power users can tune their environment. E.g. "🖐 Swipe up → Scroll up (0.91)".
+- [x] [P3-001] **Gesture confidence display in PiP overlay** — DONE f60197f — Score appended to GESTURE_DISPLAY label, e.g. "🖐 Swipe up → Scroll up (0.91)".
 
-- [ ] [P3-002] **Two-hand graceful handling** — Currently only `results.landmarks[0]` is ever used. If two hands are detected, the second is silently ignored. Document this as intended behavior, or add a "two hands detected" indicator.
+- [x] [P3-002] **Two-hand graceful handling** — DONE c6f9e04 — Documented in offscreen.js: "Only the dominant (first) hand is processed; a second hand is intentionally ignored." No indicator added — consistent with single-purpose design.
 
-- [ ] [P3-003] **Velocity normalisation by aspect ratio** — The velocity threshold (0.12) is in normalised MediaPipe coords. X and Y have equal weight despite the video being 4:3. A horizontal swipe covers less normalised distance than a vertical one of the same physical magnitude. Minor calibration improvement.
+- [x] [P3-003] **Velocity normalisation by aspect ratio** — DONE c6f9e04 — dx scaled by W/H (640/480 ≈ 1.333) in both offscreen.js and preview-detect.js. — The velocity threshold (0.12) is in normalised MediaPipe coords. X and Y have equal weight despite the video being 4:3. A horizontal swipe covers less normalised distance than a vertical one of the same physical magnitude. Minor calibration improvement.
 
-- [ ] [P3-004] **Export code human-readability** — The base64-encoded gestureMap export is not user-friendly ("SU1BTk9OT1RPRkFS..."). A short URL-safe token or a more readable JSON format would improve the share experience.
+- [x] [P3-004] **Export code human-readability** — DONE 68bb794 — Export now outputs formatted JSON; import falls back to base64 for old codes.
 
 ---
 
