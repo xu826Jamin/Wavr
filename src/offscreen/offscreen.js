@@ -165,9 +165,10 @@ function processFrame() {
     return;
   }
 
-  const wrist = results.landmarks[0][0];
-  const now   = Date.now();
-  const pose  = results.gestures?.[0]?.[0]?.categoryName ?? 'None';
+  const wrist     = results.landmarks[0][0];
+  const now       = Date.now();
+  const topGesture = results.gestures?.[0]?.[0];
+  const pose      = (topGesture?.score ?? 0) >= 0.75 ? topGesture.categoryName : 'None';
 
   const isOpen     = pose === 'Open_Palm' || pose === 'None';
   const isClosed   = pose === 'Closed_Fist';
