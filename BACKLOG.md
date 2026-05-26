@@ -20,7 +20,7 @@ Generated from Phase 0 findings. Every item is verified against source before li
 
 - [x] [P1-004] **`content.js` is unreferenced dead code** — DONE 4560489 — `src/content/content.js` is an old prototype that implements its own gesture recognizer + camera stream + overlay. It is NOT referenced in the manifest or injected by background.js. If ever accidentally reactivated it would open a second camera stream per tab. It must be deleted. Verify with: `grep -rn "content.js" src/ manifest.json dist/manifest.json`. Source: Phase 0.7 code read.
 
-- [ ] [P1-005] **`offscreen.js` GET_GESTURE_MAP callback has no error guard** — `offscreen.js:88` calls `chrome.runtime.sendMessage({ type: 'GET_GESTURE_MAP' }, (response) => { ... })` without checking `chrome.runtime.lastError`. If the background SW is mid-restart when this fires, `response` is undefined and the callback silently skips loading settings — leaving offscreen with default gesture map instead of user's map. Fix: add `if (chrome.runtime.lastError) { ... retry or log }` at top of callback. Source: Phase 0.7; coding standards async rule.
+- [x] [P1-005] **`offscreen.js` GET_GESTURE_MAP callback has no error guard** — DONE 5fbff0b — `offscreen.js:88` calls `chrome.runtime.sendMessage({ type: 'GET_GESTURE_MAP' }, (response) => { ... })` without checking `chrome.runtime.lastError`. If the background SW is mid-restart when this fires, `response` is undefined and the callback silently skips loading settings — leaving offscreen with default gesture map instead of user's map. Fix: add `if (chrome.runtime.lastError) { ... retry or log }` at top of callback. Source: Phase 0.7; coding standards async rule.
 
 ---
 
