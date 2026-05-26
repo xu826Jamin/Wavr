@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-*(Changes listed here as iterations complete)*
+- **Reliability:** Fixed a bug where gesture controls could silently stop working after 30+ seconds of reading. The extension now stays active as long as it is enabled.
 
 ---
 

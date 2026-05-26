@@ -1,5 +1,12 @@
 import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
 
+const DEV_MODE = typeof chrome !== 'undefined' &&
+  chrome.runtime?.getManifest?.()?.version?.includes('dev');
+
+function debug(...args) {
+  if (DEV_MODE) console.log('[wavr/offscreen]', ...args);
+}
+
 const GESTURES = { SWIPE_UP: 'SWIPE_UP', SWIPE_DOWN: 'SWIPE_DOWN', SWIPE_LEFT: 'SWIPE_LEFT', SWIPE_RIGHT: 'SWIPE_RIGHT', NONE: 'NONE' };
 const ACTION_LABELS = {
   SCROLL_UP: 'Scroll up', SCROLL_DOWN: 'Scroll down',
@@ -84,7 +91,7 @@ async function init() {
     video.srcObject = stream;
     await new Promise(resolve => { video.onloadedmetadata = () => { video.play(); resolve(); }; });
 
-    console.log('wavr: ready');
+    debug('ready');
     chrome.runtime.sendMessage({ type: 'GET_GESTURE_MAP' }, (response) => {
       if (response?.gestureMap)                gestureMap     = response.gestureMap;
       deadZoneAnchor = response?.deadZoneAnchor ?? { x: 0.5, y: 0.5 };
@@ -310,7 +317,7 @@ function processFrame() {
         type: 'GESTURE_DISPLAY',
         label: `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action}`,
       });
-      console.log('Gesture:', gesture, '->', action);
+      debug('gesture', gesture, '->', action);
     }
   }
 }

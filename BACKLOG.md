@@ -12,7 +12,7 @@ Generated from Phase 0 findings. Every item is verified against source before li
 
 ### P1 — High impact (noticed in 10 min; known silent-failure risk)
 
-- [ ] [P1-001] **Service worker keep-alive missing** — No `chrome.alarms` usage anywhere. Chrome can terminate the service worker after ~30s of inactivity (e.g., while the user reads a page). If terminated during an active gesture session, all `chrome.runtime.onMessage` handlers are dropped — `GESTURE_DETECTED` actions stop working silently until the next extension restart. Source: Phase 0.7 observation; MV3 known pitfall. Fix: register a `chrome.alarms` alarm on `onInstalled`/`onStartup` with a ≤25s interval; ping to keep the SW alive while offscreen is active.
+- [x] [P1-001] **Service worker keep-alive missing** — DONE 3dd710c — No `chrome.alarms` usage anywhere. Chrome can terminate the service worker after ~30s of inactivity (e.g., while the user reads a page). If terminated during an active gesture session, all `chrome.runtime.onMessage` handlers are dropped — `GESTURE_DETECTED` actions stop working silently until the next extension restart. Source: Phase 0.7 observation; MV3 known pitfall. Fix: register a `chrome.alarms` alarm on `onInstalled`/`onStartup` with a ≤25s interval; ping to keep the SW alive while offscreen is active.
 
 - [ ] [P1-002] **Bare `console.log` calls in offscreen.js** — Two violations of the no-bare-console rule. `offscreen.js:87` logs `'wavr: ready'` and `offscreen.js:313` logs `'Gesture:', gesture, '->', action`. Per coding standards all logging must go through `debug()`. These expose internal state in production. Source: Phase 0.5 code review / coding standards.
 
