@@ -599,6 +599,8 @@ chrome.storage.local.get(['gestureMap'], (result) => {
   mockIntervalId = setInterval(runMockStep, 2500);
 });
 
+window.addEventListener('pagehide', () => { clearInterval(mockIntervalId); });
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.gestureMap) mockGestureMap = changes.gestureMap.newValue || {};
 });
