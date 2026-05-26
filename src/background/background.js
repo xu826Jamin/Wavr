@@ -45,7 +45,7 @@ async function createOffscreen() {
       reasons: ['USER_MEDIA'],
       justification: 'Webcam access for hand gesture detection',
     });
-    chrome.alarms.create('keepAlive', { periodInMinutes: 0.4 });
+    chrome.alarms.create('keepAlive', { periodInMinutes: 0.25 });
   }
 }
 
@@ -53,6 +53,37 @@ async function closeOffscreen() {
   const exists = await chrome.offscreen.hasDocument();
   if (exists) await chrome.offscreen.closeDocument();
 }
+
+function isRestrictedUrl(url) {
+  if (!url) return true;
+  return url.startsWith('chrome://') ||
+         url.startsWith('chrome-extension://') ||
+         url.startsWith('about:') ||
+         url.startsWith('edge://') ||
+         url.endsWith('.pdf');
+}
+
+async function updatePageRestrictedBadge(tabId) {
+  try {
+    const exists = await chrome.offscreen.hasDocument();
+    if (!exists) {
+      chrome.action.setBadgeText({ text: '', tabId });
+      return;
+    }
+    const tab = await chrome.tabs.get(tabId);
+    if (isRestrictedUrl(tab.url)) {
+      chrome.action.setBadgeText({ text: 'OFF', tabId });
+      chrome.action.setBadgeBackgroundColor({ color: '#555', tabId });
+    } else {
+      chrome.action.setBadgeText({ text: '', tabId });
+    }
+  } catch { /* tab may have closed */ }
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => updatePageRestrictedBadge(tabId));
+chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+  if (change.url && tab.active) updatePageRestrictedBadge(tabId);
+});
 
 function broadcastToTabs(message) {
   chrome.tabs.query({}, (tabs) => {
