@@ -278,6 +278,7 @@
   let onDragMove = null;
   let onDragUp   = null;
   let liveBadgeAdded = false;
+  let deadZoneHintShown = false;
 
   // ── Cursor state ─────────────────────────────────────────────────────────────
   const CURSOR_CSS = `
@@ -517,6 +518,7 @@
     // Camera area
     const cameraArea = document.createElement('div');
     cameraArea.className = 'camera-area';
+    cameraArea.title = 'After each gesture, return your hand to the circle to unlock the next one (dead zone reset)';
 
     const placeholder = document.createElement('div');
     placeholder.className = 'cam-placeholder';
@@ -637,6 +639,13 @@
       ctx.textAlign = 'center';
       ctx.fillStyle = zoneColor;
       ctx.fillText(near ? '✓ Ready' : '↩ Return', ox, Math.max(oy - r - 5, 12));
+
+      if (!deadZoneHintShown) {
+        deadZoneHintShown = true;
+        ctx.font = '9px -apple-system, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.fillText('return to circle to unlock next gesture', W / 2, H - 24);
+      }
     }
 
     // ── Wrist dot ────────────────────────────────────────────────
