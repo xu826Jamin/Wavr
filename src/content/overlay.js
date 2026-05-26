@@ -485,18 +485,6 @@
     });
   }
 
-  function startCamera(placeholder) {
-    navigator.mediaDevices.getUserMedia({ video: { width: 288, height: 216 }, audio: false })
-      .then((s) => {
-        stream = s;
-        videoEl.srcObject = s;
-        videoEl.style.display = 'block';
-        placeholder.style.display = 'none';
-      })
-      .catch(() => {
-        placeholder.querySelector('.ph-text').textContent = 'Camera in use';
-      });
-  }
 
   function stopCamera() {
     if (stream) {
