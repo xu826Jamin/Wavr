@@ -2308,7 +2308,7 @@
   </nav>
 
   <!-- FIRST RUN OVERLAY -->
-  <div id="firstRunOverlay">
+  <div id="firstRunOverlay" role="dialog" aria-modal="true" aria-label="Wavr setup wizard">
     <div class="fr-dots">
       <span class="fr-dot fr-active"></span>
       <span class="fr-dot"></span>
@@ -2337,6 +2337,10 @@
       <button class="fr-btn-primary" id="frAllowCamera">Allow camera access</button>
       <button class="fr-btn-skip" id="frSkipCamera">Skip for now</button>
       <p class="fr-cam-err" id="frCamError"></p>
+      <div id="frCamHint" style="display:none;margin-top:12px;font-size:12px;color:#555;line-height:1.6;text-align:center;">
+        Click the <strong style="color:#888;">🔒 lock icon</strong> in Chrome's address bar → find Camera → set to Allow.<br>
+        Or go to <a id="frCamSettingsLink" href="#" style="color:#4ade80;text-decoration:underline;">chrome://settings/content/camera</a> and add this site.
+      </div>
     </div>
 
     <!-- Step 3: First gesture -->

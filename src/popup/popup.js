@@ -499,6 +499,22 @@ function frFinish() {
   chrome.storage.local.set({ onboardingComplete: true });
 }
 
+// Focus trap: keep keyboard focus inside the wizard while it's open
+document.addEventListener('keydown', (e) => {
+  if (frOverlay.style.display === 'none') return;
+  if (e.key !== 'Tab') return;
+  const focusable = Array.from(frOverlay.querySelectorAll(
+    'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+  )).filter(el => el.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  if (e.shiftKey) {
+    if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+  } else {
+    if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+
 document.getElementById('frNext1').addEventListener('click', () => frGoToStep(2));
 
 document.getElementById('frAllowCamera').addEventListener('click', async () => {
@@ -509,8 +525,16 @@ document.getElementById('frAllowCamera').addEventListener('click', async () => {
     frGoToStep(3);
     frWatchGesture();
   } else {
-    document.getElementById('frCamError').textContent =
-      'Camera blocked — allow access in your browser settings.';
+    document.getElementById('frCamError').textContent = 'Camera access was blocked.';
+    const hint = document.getElementById('frCamHint');
+    if (hint) hint.style.display = '';
+    const link = document.getElementById('frCamSettingsLink');
+    if (link) {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.runtime.sendMessage({ type: 'OPEN_URL', url: 'chrome://settings/content/camera' });
+      });
+    }
   }
 });
 
