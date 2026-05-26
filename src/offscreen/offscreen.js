@@ -120,6 +120,10 @@ async function init() {
 
   } catch (err) {
     console.error('wavr offscreen error:', err.name, err.message);
+    const msg = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+      ? 'Camera access denied. Click the camera icon in the address bar to allow.'
+      : 'Camera unavailable. Check that no other app is using it.';
+    chrome.runtime.sendMessage({ type: 'CAMERA_ERROR', message: msg }).catch(() => {});
   }
 }
 

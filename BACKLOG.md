@@ -1,56 +1,77 @@
-# Wavr — Backlog
+# Wavr — Backlog (Session 2, rebuilt from Phase 1+2 findings)
 
-Generated from Phase 0 findings. Every item is verified against source before listing.
+Generated from Phase 2 product design audit (code-verified). Every item has an identified
+source observation and verified broken/missing behaviour.
 
 ---
 
 ### P0 — Critical (crashes, data loss, core gesture broken, security issue)
 
-*(None found — security baseline clean, no crashes or data loss issues identified)*
+- [x] [P0-001] **Camera error not surfaced in PiP overlay** — DONE [pending] — When getUserMedia fails (permission denied or no hardware), `offscreen.js` catches the error and calls `console.error` only. The PiP overlay shows "Starting camera…" indefinitely. User has zero indication of what went wrong and no recovery path. Fix: send CAMERA_ERROR message from offscreen; overlay.js shows actionable error text with link guidance. Source: Phase 2 audit — Error states §Camera denied.
+
+- [ ] [P0-002] **Document drag listeners accumulate on every toggle cycle** — `setupDrag()` in overlay.js attaches anonymous `mousemove` and `mouseup` listeners to `document`. These cannot be removed. Each enable→disable→enable cycle adds new persistent listeners. After 10 toggles: 10 mousemove listeners firing on every mouse movement. Verified: no removeEventListener call anywhere for these. Source: Phase 2 audit — Memory management.
 
 ---
 
 ### P1 — High impact (noticed in 10 min; known silent-failure risk)
 
-- [x] [P1-001] **Service worker keep-alive missing** — DONE 3dd710c — No `chrome.alarms` usage anywhere. Chrome can terminate the service worker after ~30s of inactivity (e.g., while the user reads a page). If terminated during an active gesture session, all `chrome.runtime.onMessage` handlers are dropped — `GESTURE_DETECTED` actions stop working silently until the next extension restart. Source: Phase 0.7 observation; MV3 known pitfall. Fix: register a `chrome.alarms` alarm on `onInstalled`/`onStartup` with a ≤25s interval; ping to keep the SW alive while offscreen is active.
+- [ ] [P1-001] **Onboarding step 3 auto-completes without a real gesture** — `frWatchGesture()` sets a MutationObserver on `#gestureIndicator`. The first mutation fires when `processFrame()` writes "No gesture detected" (within 33ms of camera start). Since that string is truthy, `if (text && !done)` is true → `frFinish()` after 1000ms. Users never perform an actual gesture during step 3. The tutorial is silently broken. Source: Phase 2 audit — code trace popup.js:495-511.
 
-- [x] [P1-002] **Bare `console.log` calls in offscreen.js** — DONE d9ce799 — Two violations of the no-bare-console rule. `offscreen.js:87` logs `'wavr: ready'` and `offscreen.js:313` logs `'Gesture:', gesture, '->', action`. Per coding standards all logging must go through `debug()`. These expose internal state in production. Source: Phase 0.5 code review / coding standards.
+- [ ] [P1-002] **Offscreen crash = permanent silent failure** — `chrome.alarms.onAlarm` handler (background.js:306-310) clears the alarm when offscreen is gone, but does NOT recover or broadcast `HIDE_OVERLAY`. If offscreen crashes (memory pressure, Chrome policy kill), gestures stop working forever in the current session. The user sees no message and the PiP stays visible (frozen feed, no detection). Source: Phase 2 audit — Error states §Offscreen crashes.
 
-- [x] [P1-003] **No gesture confidence threshold** — DONE 672011e — `offscreen.js:163` reads `results.gestures?.[0]?.[0]?.categoryName` without checking the accompanying `score` (confidence). MediaPipe can return low-confidence classifications (e.g. 0.45 for "Closed_Fist" when the hand is ambiguous). This causes false-positive gesture fires. Fix: add `score >= 0.75` guard before treating a pose as classified. Source: Phase 0.7 code inspection.
+- [ ] [P1-003] **No gesture cooldown visual indicator** — After a gesture fires, a 600ms cooldown blocks the next gesture. During this period, hand movements are silently ignored. The "↩ Return here" dead zone message is about position, not timing. Users think the extension froze. Should show a brief timer or progress indicator during cooldown. Source: Phase 2 audit — Gesture feedback loop.
 
-- [x] [P1-004] **`content.js` is unreferenced dead code** — DONE 4560489 — `src/content/content.js` is an old prototype that implements its own gesture recognizer + camera stream + overlay. It is NOT referenced in the manifest or injected by background.js. If ever accidentally reactivated it would open a second camera stream per tab. It must be deleted. Verify with: `grep -rn "content.js" src/ manifest.json dist/manifest.json`. Source: Phase 0.7 code read.
+- [ ] [P1-004] **`getScrollTarget()` scans all DOM elements on every gesture** — `background.js:254` calls `document.querySelectorAll('*')` inside `scripting.executeScript`. On pages with 3000–10000 elements (GMail, YouTube, Amazon), this iterates a huge NodeList synchronously. Runs on every gesture. Should use smarter heuristics: check `document.scrollingElement`, then body children, before falling back. Source: Phase 2 audit — getScrollTarget O(n) finding.
 
-- [x] [P1-005] **`offscreen.js` GET_GESTURE_MAP callback has no error guard** — DONE 5fbff0b — `offscreen.js:88` calls `chrome.runtime.sendMessage({ type: 'GET_GESTURE_MAP' }, (response) => { ... })` without checking `chrome.runtime.lastError`. If the background SW is mid-restart when this fires, `response` is undefined and the callback silently skips loading settings — leaving offscreen with default gesture map instead of user's map. Fix: add `if (chrome.runtime.lastError) { ... retry or log }` at top of callback. Source: Phase 0.7; coding standards async rule.
+- [ ] [P1-005] **Overlay anonymous chrome.runtime.onMessage listener cannot be removed** — `overlay.js:787` registers the message handler as an anonymous arrow function. When `hideWidget()` is called, the widget DOM is removed but the message listener persists. On the next `showWidget()`, a second anonymous listener is added. Gesture events reach both listeners. After N toggles: N listeners. Source: Phase 2 audit — Memory management.
+
+- [ ] [P1-006] **No "extension can't work here" indicator for chrome:// and PDF tabs** — When the user is on a `chrome://` tab, `about:` page, or PDF, gestures execute `scripting.executeScript` which silently fails. The PiP overlay stays visible and the gesture label fires normally, making the user think the gesture worked. Should detect and show a message like "Gestures inactive on this page." Source: Phase 2 audit — Error states §Tab is chrome://.
 
 ---
 
-### P2 — Polish (noticed in 30 min; UX friction; code hygiene)
+### P2 — Polish (noticed in 30 min; UX friction)
 
-- [x] [P2-001] **Dead function `startCamera()` in overlay.js** — DONE 3c15c8b — `overlay.js:488-499` defines `startCamera(placeholder)` which opens a second camera stream. It is never called — per CLAUDE.md Rule 6, all video comes from `VIDEO_FRAME` relay. The function confuses future developers and its presence caused a real bug historically. Fix: delete the function. Source: Phase 0.7; CLAUDE.md Rule 6.
+- [ ] [P2-001] **Scroll amount hardcoded at 400px** — `background.js:279` always passes `400` as the scroll amount. Too little on large monitors, too much on laptops. No way to configure. Add `scrollAmount` storage key (default 400, range 100–1200px), slider in popup settings, read in executeScript. Source: Phase 2 audit — Settings discoverability.
 
-- [x] [P2-002] **Unused variables `gestureOrigin` and `cursorZone` in preview-detect.js** — DONE 762919d — These are the 2 of the 3 baseline lint errors. `gestureOrigin` (line 22) is assigned at gesture fire time but never read back. `cursorZone` (line 26) is stored from storage but never consumed in drawing. Both are dead state. Fix: remove both variables and their assignment/storage sites. Source: Phase 0.5 lint baseline.
+- [ ] [P2-002] **Camera denied recovery in onboarding has no actionable guidance** — When camera permission is denied, step 2 shows "Camera blocked — allow access in your browser settings" as plain text. No link, no screenshot, no indication of whether to use chrome://settings or the browser's address bar lock icon. Source: Phase 2 audit — Onboarding §Camera denied recovery.
 
-- [x] [P2-003] **`shared/gestures.js` exports not consumed** — DONE 2e9f811 — The file exports `GESTURES`, `ACTIONS`, `MESSAGES`, `DEFAULT_GESTURE_MAP`. None of these are imported by any active file (background.js, offscreen.js, overlay.js, popup.js, preview-detect.js all define their own inline constants). The file is cargo-cult dead code. Verify: `grep -rn "from.*gestures\|require.*gestures" src/`. Fix: delete the file (or keep for documentation — document decision). Source: Phase 0.7.
+- [ ] [P2-003] **No aria-label on overlay icon buttons** — `minBtn` (minimize) and `closeBtn` (stop) in the PiP overlay have `title` attributes but no `aria-label`. Screen readers announce the SVG content, not a human-readable name. Fails WCAG 2.1 SC 4.1.2. Source: Phase 2 audit — Accessibility.
 
-- [x] [P2-004] **Mockup panel uses `setInterval` without cleanup in popup.js** — DONE 85eb9a0 — `popup.js:598` calls `setInterval(runMockStep, 2500)` and never stores the return value for cleanup. When the popup tab is closed, the interval is garbage-collected by the browser, but if the popup HTML ever re-mounts without full page reload, this would leak. Minor but violates the "every interval has a cleanup" rule. Source: Phase 0.7.
+- [ ] [P2-004] **Gesture display has no aria-live region** — When a gesture fires, `gestureBar.innerHTML` updates but no ARIA attribute announces the change to screen readers. Add `role="status"` (implicit aria-live="polite") to the gestureBar element. Source: Phase 2 audit — Accessibility.
 
-- [SKIPPED] [P2-005] **`WAVR_CWS_URL` placeholder must be replaced** — Requires real extension ID; only fixable post-publication. — Both `overlay.js:7` and `popup.js:4` contain `https://chromewebstore.google.com/detail/wavr/placeholder`. This is the URL used in the share tweet. Until replaced with the real extension ID it generates a broken CWS link. Source: Phase 0.7; CLAUDE.md "Key constants to update".
+- [ ] [P2-005] **Dead zone concept is unexplained in-UI** — The dead zone circle appears in the PiP with "↩ Return here" / "✓ Ready" labels, but there is no tooltip, info button, or description explaining what it is. First-time users wonder why they have to return to a specific spot after each gesture. Source: Phase 2 audit — Settings discoverability.
 
-- [x] [P2-006] **No dwell progress indicator in cursor mode** — DONE e2fde93 — When the user holds a Closed Fist to trigger a click, there is no visual feedback during the `CLICK_DWELL_MS` (200ms) window. The click just fires silently. A brief fill animation or ring on the cursor would make the dwell interaction discoverable. Source: Phase 0.7 audit.
+- [ ] [P2-006] **`firstRunDone` vs `onboardingComplete` storage keys are inconsistent** — background.js sets `firstRunDone` to gate the first-click behavior. popup.js reads `onboardingComplete` to show the wizard. These keys serve different but related purposes with different names. `onboardingComplete` is never set by the normal flow when firstRunDone gates first click. This means if user clicks icon directly, `firstRunDone=true` but `onboardingComplete` is unset → wizard shows on every popup open until wizard is completed. Source: Phase 2 audit — Onboarding.
 
-- [x] [P2-007] **`OVERLAY_STATE` sends cursor-mode fields unnecessarily** — DONE 8ae1fd8 — `offscreen.js:267-278` always includes `cursorZone` and `cursorMirrorX` in `OVERLAY_STATE` even when in scroll mode. `drawState()` ignores them correctly (CLAUDE.md Rule 1 is followed), but sending 2 extra fields per frame at 15 fps wastes message bandwidth. Fix: strip cursor-mode fields from OVERLAY_STATE. Source: Phase 0.7.
+- [ ] [P2-007] **Video element in PiP has no accessible description** — The `<video>` element and canvas overlays have no `aria-label` or `aria-describedby`. Screen readers have no way to understand what the camera feed shows. Should add a brief description. Source: Phase 2 audit — Accessibility.
+
+- [ ] [P2-008] **Gesture bar `min-height: 40px` clips long gesture labels** — Gesture display labels now include confidence scores: "🖐 SWIPE UP → Scroll up (0.93)". On narrow screens or when the widget is resized, this can wrap or be clipped. The bar has fixed height. Should allow wrap or increase min-height. Source: Phase 2 audit — Visual consistency.
+
+- [ ] [P2-009] **No hand-detection indicator in PiP** — When there's no hand in frame, the PiP just shows the camera feed with "● waiting". When a hand is detected but no gesture fires (e.g., during dead zone return), there's no positive feedback that the hand is being tracked. The buffer bar fills but only in the popup preview, not the overlay. Source: Phase 2 audit — Gesture feedback loop.
+
+- [ ] [P2-010] **First-run wizard has no focus trap or aria-modal** — The wizard overlay covers the full popup page but has no `aria-modal="true"`, no focus trap, and no `role="dialog"`. Tab key takes focus to hidden elements behind the overlay. Source: Phase 2 audit — Accessibility.
+
+- [ ] [P2-011] **`background.js` TOGGLE/STOP handling doesn't update `firstRunDone`** — After the first run, toggling via action.onClicked works. But `TOGGLE` from the popup doesn't update `firstRunDone`. This is fine since firstRunDone is only checked on icon click — but the two code paths (icon click vs popup toggle) are inconsistent about what triggers the offscreen lifecycle. Source: Phase 2 audit — code review.
+
+- [ ] [P2-012] **Scroll action not dispatched to the correct tab when multiple windows are open** — `background.js:229-237` sorts tabs by `lastAccessed` and picks the most recent. But `lastAccessed` is the time the tab was last activated, not the time of the gesture. If the user is on a different window than the active tab, the wrong tab scrolls. Should use `chrome.tabs.query({ active: true, currentWindow: true })` with fallback. Source: Phase 2 audit — background.js GESTURE_DETECTED handler.
 
 ---
 
 ### P3 — Stretch (valuable but not blocking quality bar)
 
-- [x] [P3-001] **Gesture confidence display in PiP overlay** — DONE f60197f — Score appended to GESTURE_DISPLAY label, e.g. "🖐 Swipe up → Scroll up (0.91)".
+- [ ] [P3-001] **Keyboard shortcut to toggle Wavr** — Currently requires clicking the extension icon. Add a keyboard shortcut (configurable via chrome://extensions/shortcuts). Register via `commands` in manifest. Source: Phase 2 audit — UX friction.
 
-- [x] [P3-002] **Two-hand graceful handling** — DONE c6f9e04 — Documented in offscreen.js: "Only the dominant (first) hand is processed; a second hand is intentionally ignored." No indicator added — consistent with single-purpose design.
+- [ ] [P3-002] **Additional scroll actions: viewport-height jump** — SCROLL_UP and SCROLL_DOWN always move 400px. Add SCROLL_UP_PAGE / SCROLL_DOWN_PAGE that move by `window.innerHeight * 0.85` for per-page navigation (like Space/Page Down). Source: Phase 2 audit — settings discoverability.
 
-- [x] [P3-003] **Velocity normalisation by aspect ratio** — DONE c6f9e04 — dx scaled by W/H (640/480 ≈ 1.333) in both offscreen.js and preview-detect.js. — The velocity threshold (0.12) is in normalised MediaPipe coords. X and Y have equal weight despite the video being 4:3. A horizontal swipe covers less normalised distance than a vertical one of the same physical magnitude. Minor calibration improvement.
+- [ ] [P3-003] **Gesture history in PiP overlay** — Show the last 3 gestures as a brief history under the active label. Helps users understand what gesture was detected vs. what they intended. Source: competitive analysis finding.
 
-- [x] [P3-004] **Export code human-readability** — DONE 68bb794 — Export now outputs formatted JSON; import falls back to base64 for old codes.
+- [ ] [P3-004] **Pose detection quality indicator** — Show a quality/confidence bar in the PiP during hand detection. If confidence is consistently near 0.75 threshold, the environment lighting is poor. Source: Phase 2 audit — Gesture feedback loop.
+
+- [ ] [P3-005] **Tab-restricted gesture notification** — When gestures are attempted on a chrome:// tab, show a brief toast notification suggesting the user switch to a regular page. Source: Phase 2 audit — Error states §Tab is chrome://.
+
+- [ ] [P3-006] **Scroll amount configurable per-gesture** — Different gestures could have different scroll amounts (e.g., closed fist swipe = large scroll, open palm = small scroll). Would enable more expressive gesture maps. Source: Phase 2 audit — Settings.
+
+- [ ] [P3-007] **Mirror X applied to dead zone position** — When cursorMirrorX is enabled, the dead zone display in the preview correctly mirrors. But the anchor coordinate stored in storage is in un-mirrored MediaPipe space. This means clicking to place an anchor in the mirrored preview doesn't map correctly. Source: code review.
 
 ---
 

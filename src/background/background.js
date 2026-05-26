@@ -218,6 +218,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message.type === 'CAMERA_ERROR') {
+    broadcastToTabs(message);
+    return false;
+  }
+
   if (message.type === 'GESTURE_DETECTED') {
     if (message.action && message.action !== 'NONE') {
       chrome.storage.local.get(['achievements'], (r) => {

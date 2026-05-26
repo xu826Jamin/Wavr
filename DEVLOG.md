@@ -162,3 +162,138 @@ Update this section whenever a message type, file, or storage key changes.
 - `achievements` — written by background.js, popup.js; read by popup.js
 - `onboardingComplete` — written by popup.js; read by popup.js
 - `firstRunDone` — written by background.js; read by background.js
+
+---
+
+## Phase 1 — Research (Session 2, 2026-05-25)
+
+Web searches dispatched to background research agent. Findings will be incorporated when agent completes.
+
+Preliminary findings from code audit (verified against source):
+
+### Finding: Document event listeners never removed
+**Source:** Code audit — overlay.js:754,764
+**Insight:** `setupDrag()` attaches `mousemove` and `mouseup` listeners to `document` using anonymous functions. These cannot be removed. Every call to `buildWidget()` → `showWidget()` → `setupDrag()` creates new persistent listeners. Users who toggle the extension on/off accumulate listeners.
+**Applies to Wavr because:** overlay.js, setupDrag() function
+**Action:** Add named references for drag listeners; remove them in hideWidget()
+
+### Finding: Onboarding step 3 auto-completes immediately
+**Source:** Code audit — popup.js:495-511, preview-detect.js:430
+**Insight:** `frWatchGesture()` sets a MutationObserver on `#gestureIndicator`. The first mutation fires when processFrame sets indicator to "No gesture detected" (33ms after camera starts). Since "No gesture detected" is truthy, `if (text && !done)` triggers → frFinish() after 1s. Users never actually perform a gesture during onboarding step 3.
+**Applies to Wavr because:** popup.js frWatchGesture(), preview-detect.js processFrame()
+**Action:** Only call frFinish if text is not "No gesture detected" and not empty
+
+### Finding: Camera error not surfaced to user
+**Source:** Code audit — offscreen.js:121-123
+**Insight:** `init()` catch block only calls `console.error()`. If getUserMedia fails (permission denied, no camera hardware), the PiP overlay shows "Starting camera…" forever. No CAMERA_ERROR message is sent. Users have no idea why the camera isn't working.
+**Applies to Wavr because:** offscreen.js init(), overlay.js buildWidget()
+**Action:** Send CAMERA_ERROR message from offscreen catch; handle in overlay.js to show actionable message
+
+### Finding: Offscreen crash = silent permanent failure
+**Source:** Code audit — background.js:306-310
+**Insight:** The keepAlive alarm handler clears the alarm when offscreen doesn't exist (`chrome.alarms.clear('keepAlive')`), but does NOT restart it. If offscreen crashes mid-session (memory pressure, Chrome policy), gestures permanently stop working. The user sees no error and has no recovery path short of clicking the extension icon to toggle.
+**Applies to Wavr because:** background.js onAlarm handler
+**Action:** If offscreen is gone but Wavr should be active (track enabled state), broadcast HIDE_OVERLAY and set enabled=false, or optionally restart offscreen
+
+### Finding: No cooldown visual indicator
+**Source:** Code audit — offscreen.js settings.cooldownMs=600
+**Insight:** After a gesture fires, a 600ms cooldown blocks the next gesture. During this period, users who attempt another gesture see nothing happen. The PiP shows "↩ Return here" (dead zone) but no timer. Users think the extension broke.
+**Applies to Wavr because:** overlay.js gesture bar, offscreen.js
+**Action:** Show a brief cooldown indicator in the gesture bar or as an overlay timer
+
+### Finding: getScrollTarget() is O(all DOM elements)
+**Source:** Code audit — background.js:254-270 (executeScript)
+**Insight:** `document.querySelectorAll('*')` selects every element on the page, then iterates all of them looking for the deepest scrollable. On pages with 5000+ elements (YouTube, GMail, Amazon), this is slow. It runs on every gesture.
+**Applies to Wavr because:** background.js GESTURE_DETECTED handler
+**Action:** Limit querySelectorAll scope; use smarter heuristics (e.g., check only direct body children + common scrollable containers)
+
+### Finding: Scroll amount hardcoded at 400px
+**Source:** Code audit — background.js:279 `args: [action, 400]`
+**Insight:** The scroll amount is always 400px regardless of device or user preference. This is too much on small laptops, not enough on large monitors. No way to configure it.
+**Applies to Wavr because:** background.js executeScript, popup.js settings
+**Action:** Add scrollAmount to storage settings with slider in popup; default 400px; range 100-800px
+
+### Finding: No aria-label on overlay buttons
+**Source:** Code audit — overlay.js:459,469
+**Insight:** The minimize (minBtn) and close (closeBtn) buttons in the PiP overlay have `title` attribute but no `aria-label`. Screen readers announce the icon SVG content, not a human-readable label. WCAG 2.1 SC 4.1.2 requires accessible name.
+**Applies to Wavr because:** overlay.js buildWidget()
+**Action:** Add aria-label to both buttons
+
+### Finding: No aria-live for gesture display
+**Source:** Code audit — overlay.js:699-742 showGesture()
+**Insight:** When a gesture fires, `gestureBar` innerHTML is updated. Screen reader users don't know what gesture was detected. No `aria-live` region.
+**Applies to Wavr because:** overlay.js gestureBar
+**Action:** Add role="status" or aria-live="polite" to gestureBar
+
+---
+
+## Phase 2 — Product Design Audit (Session 2, 2026-05-25)
+
+### Onboarding (first 60 seconds) — Score: 4/10
+
+**Observations:**
+1. Step 3 auto-completes in ~1 second due to frWatchGesture bug — users never try a real gesture during setup (confirmed bug in source).
+2. Camera denied recovery shows text only "Camera blocked — allow access in your browser settings" — no clickable link, no screenshot, no chrome://settings path.
+3. The `firstRunDone` and `onboardingComplete` storage keys serve different purposes and are never explained to developers.
+4. No gesture reference card shown during onboarding — users leave setup not knowing what poses trigger what.
+
+### Gesture feedback loop — Score: 6/10
+
+**Observations:**
+1. Gesture label appears with emoji + action + confidence score (0.xx) ✓
+2. Dead zone circle shows green/amber state with "↩ Return" label ✓
+3. 600ms cooldown period has ZERO visual indication — users experience mystery non-responsiveness
+4. Buffer bar fills as the wrist moves — good visual signal ✓
+5. No indication when the extension is detecting vs. not detecting a hand
+
+### Error states — Score: 3/10
+
+**Enumerated errors and current handling:**
+| Error | Current handling | Score |
+|-------|-----------------|-------|
+| Camera denied | Silent failure — PiP shows "Starting camera…" forever | 1/10 |
+| Camera hardware unavailable | Same as above | 1/10 |
+| MediaPipe model fails to load | Silent — console.error only | 1/10 |
+| Tab is chrome:// / PDF | Silently skipped — no indicator | 4/10 |
+| Offscreen crashes mid-session | Alarm stops, no recovery | 2/10 |
+| SW terminates | keepAlive partially handles; recovery if idle | 6/10 |
+
+### Settings discoverability — Score: 6/10
+
+**Observations:**
+1. Gesture accordion organized by pose — intuitive for users who know poses ✓
+2. Gesture explorer shows what each combo does live ✓
+3. "Dead zone" concept not explained anywhere in the UI — no tooltip, no description
+4. Scroll amount not configurable (hardcoded 400px) — power users blocked
+5. Preset descriptions are one-liners but adequate
+
+### Visual consistency — Score: 7/10
+
+**Observations:**
+1. Color system is well-defined and consistently applied across overlay, popup ✓
+2. Monospace font used for data values ✓  
+3. Overlay buttons lack aria-label — not just accessibility, shows incomplete polish
+4. Gesture bar uses fixed `min-height: 40px` — label can be clipped at narrow widths (confidence score makes labels longer now)
+
+### Accessibility — Score: 2/10
+
+**Observations:**
+1. Icon buttons (minimize, close in overlay) have title but no aria-label — WCAG fail
+2. Gesture display has no aria-live — screen readers miss all gesture events
+3. First-run overlay has no aria-modal or focus trap — tabbing leaves the wizard
+4. Status pill keyboard interaction not tested but no visible focus ring
+5. The live camera feed (video element) has no aria-description
+6. All canvas elements (overlay, gesture bar) have no ARIA semantics
+
+### Top 10 problems by user impact (ranked):
+
+1. **Camera error shows no message** — users who can't get the camera working have no path forward
+2. **Onboarding step 3 never fires** — the tutorial is silently broken
+3. **Offscreen crash = permanent failure** — no recovery; session dies silently
+4. **Document drag listeners accumulate** — memory grows each toggle cycle
+5. **Cooldown invisible to user** — random-feeling pauses destroy trust
+6. **Dead zone concept unexplained** — users think the extension randomly stops
+7. **No scroll amount config** — wrong default for ~50% of screens
+8. **Accessibility failures** — extension completely unusable with screen reader
+9. **getScrollTarget O(n)** — slow on large pages
+10. **No "won't work here" indicator** — users on chrome:// tabs confused

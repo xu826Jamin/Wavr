@@ -134,6 +134,14 @@
       font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
       letter-spacing: 0.3px;
     }
+    .cam-placeholder.cam-error .ph-text {
+      color: #f87171;
+      font-size: 10.5px;
+      text-align: center;
+      padding: 0 10px;
+      line-height: 1.5;
+    }
+    .cam-placeholder.cam-error svg { display: none; }
     .live-badge {
       position: absolute;
       top: 8px;
@@ -806,6 +814,14 @@
     }
     if (message.type === 'START_OVERLAY')     showWidget();
     if (message.type === 'HIDE_OVERLAY')    { hideWidget(); hideCursor(); }
+    if (message.type === 'CAMERA_ERROR') {
+      if (camPlaceholder) {
+        camPlaceholder.classList.add('cam-error');
+        const txt = camPlaceholder.querySelector('.ph-text');
+        if (txt) txt.textContent = message.message;
+        camPlaceholder.style.display = '';
+      }
+    }
     if (message.type === 'GESTURE_DISPLAY')   showGesture(message.label);
     if (message.type === 'OVERLAY_STATE')     drawState(message);
     if (message.type === 'SET_MIRROR_X')      setMirrorX(message.mirrorX);
