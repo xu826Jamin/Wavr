@@ -8,7 +8,8 @@
     "activeTab",
     "scripting",
     "storage",
-    "tabs"
+    "tabs",
+    "alarms"
   ],
   "optional_permissions": ["camera"],
   "host_permissions": ["<all_urls>"],

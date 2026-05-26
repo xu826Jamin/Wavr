@@ -1,0 +1,10 @@
+
+C:\Users\xujam\Downloads\Year3\gesture-scroll\src\content\overlay.js
+  488:12  error  'startCamera' is defined but never used  no-unused-vars
+
+C:\Users\xujam\Downloads\Year3\gesture-scroll\src\popup\preview-detect.js
+  22:5  error  'gestureOrigin' is assigned a value but never used  no-unused-vars
+  26:5  error  'cursorZone' is assigned a value but never used     no-unused-vars
+
+✖ 3 problems (3 errors, 0 warnings)
+
