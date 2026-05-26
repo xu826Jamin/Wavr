@@ -12,6 +12,9 @@
     "motion": "^12.38.0"
   },
   "devDependencies": {
+    "eslint": "^10.4.0",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
     "sharp": "^0.34.5",
     "vite": "^5.0.0",
     "vite-plugin-web-extension": "^4.0.0"
