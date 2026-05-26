@@ -13,6 +13,7 @@ const BUFFER_SIZE    = 8;
 const COOLDOWN_MS    = 600;
 const VELOCITY_THRESHOLD = 0.12;
 const TRAIL_LENGTH   = 16;
+const VIDEO_ASPECT   = 640 / 480;
 
 let deadZoneRadius = 0.10;
 let gestureRecognizer = null;
@@ -153,19 +154,20 @@ function detectSwipe() {
   if (positionBuffer.length < BUFFER_SIZE) return GESTURES.NONE;
   const oldest = positionBuffer[0];
   const newest = positionBuffer[positionBuffer.length - 1];
-  const dx = newest.x - oldest.x;
-  const dy = newest.y - oldest.y;
-  const t  = VELOCITY_THRESHOLD;
-  if (Math.abs(dy) > Math.abs(dx)) {
+  const dx  = newest.x - oldest.x;
+  const dy  = newest.y - oldest.y;
+  const dxA = dx * VIDEO_ASPECT;
+  const t   = VELOCITY_THRESHOLD;
+  if (Math.abs(dy) > Math.abs(dxA)) {
     if (dy < -t) return GESTURES.SWIPE_UP;
     if (dy > t)  return GESTURES.SWIPE_DOWN;
   } else {
     if (cursorMirrorX) {
-      if (dx > t)  return GESTURES.SWIPE_LEFT;
-      if (dx < -t) return GESTURES.SWIPE_RIGHT;
+      if (dxA > t)  return GESTURES.SWIPE_LEFT;
+      if (dxA < -t) return GESTURES.SWIPE_RIGHT;
     } else {
-      if (dx < -t) return GESTURES.SWIPE_LEFT;
-      if (dx > t)  return GESTURES.SWIPE_RIGHT;
+      if (dxA < -t) return GESTURES.SWIPE_LEFT;
+      if (dxA > t)  return GESTURES.SWIPE_RIGHT;
     }
   }
   return GESTURES.NONE;

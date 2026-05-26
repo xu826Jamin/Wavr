@@ -123,19 +123,24 @@ async function init() {
   }
 }
 
+// Video is 640×480 (4:3). MediaPipe normalised coords: x spans width, y spans height.
+// Scale dx by W/H so both axes measure equal physical distance per unit.
+const VIDEO_ASPECT = 640 / 480; // ≈ 1.333
+
 function detectSwipe() {
   if (positionBuffer.length < settings.bufferSize) return GESTURES.NONE;
   const oldest = positionBuffer[0];
   const newest = positionBuffer[positionBuffer.length - 1];
-  const dx = newest.x - oldest.x;
-  const dy = newest.y - oldest.y;
-  const t = settings.velocityThreshold;
-  if (Math.abs(dy) > Math.abs(dx)) {
+  const dx  = newest.x - oldest.x;
+  const dy  = newest.y - oldest.y;
+  const dxA = dx * VIDEO_ASPECT; // height-equivalent normalised units
+  const t   = settings.velocityThreshold;
+  if (Math.abs(dy) > Math.abs(dxA)) {
     if (dy < -t) return GESTURES.SWIPE_UP;
     if (dy > t) return GESTURES.SWIPE_DOWN;
   } else {
-    if (dx < -t) return GESTURES.SWIPE_LEFT;
-    if (dx > t) return GESTURES.SWIPE_RIGHT;
+    if (dxA < -t) return GESTURES.SWIPE_LEFT;
+    if (dxA > t)  return GESTURES.SWIPE_RIGHT;
   }
   return GESTURES.NONE;
 }
@@ -166,6 +171,7 @@ function processFrame() {
     return;
   }
 
+  // Only the dominant (first) hand is processed; a second hand is intentionally ignored.
   const wrist     = results.landmarks[0][0];
   const now       = Date.now();
   const topGesture = results.gestures?.[0]?.[0];
