@@ -254,6 +254,8 @@
   let dragOffsetY = 0;
   let latestFrameImg = null;
   let camPlaceholder = null;
+  let onDragMove = null;
+  let onDragUp   = null;
   let liveBadgeAdded = false;
 
   // ── Cursor state ─────────────────────────────────────────────────────────────
@@ -693,6 +695,8 @@
     latestFrameImg = null;
     camPlaceholder = null;
     liveBadgeAdded = false;
+    if (onDragMove) { document.removeEventListener('mousemove', onDragMove); onDragMove = null; }
+    if (onDragUp)   { document.removeEventListener('mouseup',   onDragUp);   onDragUp   = null; }
     if (host) {
       host.remove();
       host = null;
@@ -759,7 +763,10 @@
       e.preventDefault();
     });
 
-    document.addEventListener('mousemove', (e) => {
+    if (onDragMove) document.removeEventListener('mousemove', onDragMove);
+    if (onDragUp)   document.removeEventListener('mouseup',   onDragUp);
+
+    onDragMove = (e) => {
       if (!isDragging || !host) return;
       const x = e.clientX - dragOffsetX;
       const y = e.clientY - dragOffsetY;
@@ -767,9 +774,11 @@
       host.style.top = Math.max(0, Math.min(y, window.innerHeight - host.offsetHeight)) + 'px';
       host.style.right = 'auto';
       host.style.bottom = 'auto';
-    });
+    };
+    onDragUp = () => { isDragging = false; };
 
-    document.addEventListener('mouseup', () => { isDragging = false; });
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup',   onDragUp);
   }
 
   function drawFrame(img) {
