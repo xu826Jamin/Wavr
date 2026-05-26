@@ -526,6 +526,7 @@ const MOCK_ACTION_LABELS = {
 
 let mockStep = 0;
 let mockGestureMap = {};
+let mockIntervalId = null;
 
 function runMockStep() {
   const g      = MOCK_GESTURES[mockStep % MOCK_GESTURES.length];
@@ -595,7 +596,7 @@ function runMockStep() {
 chrome.storage.local.get(['gestureMap'], (result) => {
   mockGestureMap = result.gestureMap || {};
   runMockStep();
-  setInterval(runMockStep, 2500);
+  mockIntervalId = setInterval(runMockStep, 2500);
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
