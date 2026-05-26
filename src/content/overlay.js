@@ -824,7 +824,7 @@
     }
   }
 
-  chrome.runtime.onMessage.addListener((message) => {
+  function handleMessage(message) {
     if (message.type === 'VIDEO_FRAME') {
       const img = new Image();
       img.onload = () => {
@@ -862,7 +862,8 @@
     }
     if (message.type === 'CURSOR_STATE') { updateCursor(message); drawCursorZone(message); }
     if (message.type === 'CURSOR_CLICK')  fireCursorClick(message.x, message.y);
-  });
+  }
+  chrome.runtime.onMessage.addListener(handleMessage);
 
   chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
     if (chrome.runtime.lastError) return;
