@@ -438,8 +438,19 @@ document.getElementById('cursorZoneReset').addEventListener('click', () => {
 
 const frOverlay = document.getElementById('firstRunOverlay');
 
-chrome.storage.local.get(['onboardingComplete'], ({ onboardingComplete }) => {
-  if (onboardingComplete) frOverlay.style.display = 'none';
+chrome.storage.local.get(['onboardingComplete', 'firstRunDone'], ({ onboardingComplete, firstRunDone }) => {
+  if (onboardingComplete) {
+    frOverlay.style.display = 'none';
+  } else if (firstRunDone) {
+    // Extension was used before but wizard not completed (e.g. popup closed mid-flow).
+    // Check if Wavr is already running — if so, onboarding is implicitly done.
+    chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (resp) => {
+      if (resp?.enabled) {
+        chrome.storage.local.set({ onboardingComplete: true });
+        frOverlay.style.display = 'none';
+      }
+    });
+  }
 });
 
 function frGoToStep(n) {
