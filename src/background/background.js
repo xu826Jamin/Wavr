@@ -262,15 +262,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     }
 
-    chrome.tabs.query({}, (tabs) => {
-      const target = tabs
-        .filter(t =>
-          t.url &&
-          !t.url.startsWith('chrome://') &&
-          !t.url.startsWith('chrome-extension://') &&
-          t.url !== 'about:blank'
-        )
-        .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+    chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
+      const activeTab = activeTabs[0];
+      chrome.tabs.query({}, (tabs) => {
+      const eligible = tabs.filter(t =>
+        t.url && !isRestrictedUrl(t.url)
+      );
+      const target = (activeTab && !isRestrictedUrl(activeTab.url))
+        ? activeTab
+        : eligible.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
 
       if (target?.id) {
         const action = message.action;
@@ -319,6 +319,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           args: [action, 400]
         }).catch(() => {});
       }
+      });
     });
   }
 });
