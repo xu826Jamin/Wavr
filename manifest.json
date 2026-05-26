@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Wavr",
+  "version": "1.0.0",
+  "description": "Wave to scroll, click, and navigate Chrome with hand gestures. Works on any website — no touching required.",
+  "permissions": [
+    "offscreen",
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "optional_permissions": ["camera"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_icon": {
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "src/popup/popup.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/overlay.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
+  "icons": {
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wavr — Advanced Settings</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scrollbar-width: thin; scrollbar-color: #2a2a2a #0f0f0f; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      height: 56px;
+      background: rgba(15,15,15,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e1e1e;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 40px;
+    }
+    .topbar-logo { display: flex; align-items: center; gap: 10px; }
+    .topbar-icon-img { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; }
+    .topbar-name { font-size: 15px; font-weight: 700; }
+    .topbar-divider { color: #333; font-size: 18px; font-weight: 300; }
+    .topbar-sub { font-size: 13px; color: #555; }
+
+    .content { max-width: 680px; margin: 0 auto; padding: 56px 40px 120px; }
+
+    .page-eyebrow {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+      color: #4ade80; font-weight: 600; margin-bottom: 10px;
+    }
+    .page-heading { font-size: 32px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 8px; }
+    .page-sub { font-size: 14px; color: #666; line-height: 1.6; }
+
+    .settings-card {
+      background: #141414; border: 1px solid #1e1e1e;
+      border-radius: 14px; padding: 4px 0; margin-top: 32px; overflow: hidden;
+    }
+    .option-card {
+      background: #141414; border: 1px solid #1e1e1e;
+      border-radius: 14px; padding: 4px 0; margin-top: 32px; overflow: hidden;
+    }
+    .gesture-group-label {
+      padding: 10px 20px 6px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.8px; color: #555; font-weight: 600;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .gesture-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid #1a1a1a; gap: 20px;
+    }
+    .gesture-row:last-child { border-bottom: none; }
+    .gesture-row-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .gesture-arrow-icon { font-size: 18px; }
+    .gesture-name { font-size: 14px; color: #888; }
+    select {
+      background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 8px;
+      color: #ccc; font-size: 13px; padding: 7px 10px; cursor: pointer;
+      outline: none; flex: 1; max-width: 220px; transition: border-color 0.2s;
+    }
+    select:focus { border-color: #4ade80; }
+
+    .option-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; gap: 16px;
+    }
+    .option-label { font-size: 14px; color: #888; }
+    .option-desc { font-size: 12px; color: #555; margin-top: 2px; }
+
+    .save-row { margin-top: 28px; display: flex; align-items: center; gap: 14px; }
+    .save-btn {
+      padding: 12px 28px; background: #4ade80; border: none; border-radius: 10px;
+      color: #000; font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.2s; letter-spacing: 0.1px;
+    }
+    .save-btn:hover { opacity: 0.85; }
+    .saved-msg { font-size: 13px; color: #4ade80; min-height: 20px; }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-logo">
+      <img src="../../icons/icon48.png" class="topbar-icon-img" alt="Wavr">
+      <span class="topbar-name">Wavr</span>
+    </div>
+    <span class="topbar-divider">/</span>
+    <span class="topbar-sub">Advanced Settings</span>
+  </header>
+
+  <div class="content">
+    <div class="page-eyebrow">Advanced</div>
+    <h1 class="page-heading">Gesture Mappings</h1>
+    <p class="page-sub">Map each additional gesture to an action. These run alongside your main open-palm swipes.</p>
+
+    <!-- Closed Fist -->
+    <div class="settings-card">
+      <div class="gesture-group-label">✊ Closed fist</div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">↑</span><span class="gesture-name">Swipe up</span></div>
+        <select id="closed_swipe_up">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">↓</span><span class="gesture-name">Swipe down</span></div>
+        <select id="closed_swipe_down">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">←</span><span class="gesture-name">Swipe left</span></div>
+        <select id="closed_swipe_left">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">→</span><span class="gesture-name">Swipe right</span></div>
+        <select id="closed_swipe_right">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Pointing Up -->
+    <div class="settings-card">
+      <div class="gesture-group-label">☝ Pointing up</div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">↑</span><span class="gesture-name">Swipe up</span></div>
+        <select id="pointing_swipe_up">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">↓</span><span class="gesture-name">Swipe down</span></div>
+        <select id="pointing_swipe_down">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">←</span><span class="gesture-name">Swipe left</span></div>
+        <select id="pointing_swipe_left">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">→</span><span class="gesture-name">Swipe right</span></div>
+        <select id="pointing_swipe_right">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Victory -->
+    <div class="settings-card">
+      <div class="gesture-group-label">✌ Victory</div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">↑</span><span class="gesture-name">Swipe up</span></div>
+        <select id="victory_swipe_up">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">↓</span><span class="gesture-name">Swipe down</span></div>
+        <select id="victory_swipe_down">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">←</span><span class="gesture-name">Swipe left</span></div>
+        <select id="victory_swipe_left">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+      <div class="gesture-row">
+        <div class="gesture-row-left"><span class="gesture-arrow-icon">→</span><span class="gesture-name">Swipe right</span></div>
+        <select id="victory_swipe_right">
+          <option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option>
+          <option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option>
+          <option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option>
+          <option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="save-row">
+      <button class="save-btn" id="saveBtn">Save settings</button>
+      <span class="saved-msg" id="savedMsg"></span>
+    </div>
+  </div>
+
+  <script type="module" src="./options.js"></script>
+</body>
+</html>

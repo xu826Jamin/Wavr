@@ -1,0 +1,3257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wavr</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: #2a2a2a #0f0f0f;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 38px;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 56px;
+      background: rgba(15,15,15,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e1e1e;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+    }
+    .topbar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar-icon-img {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+    .topbar-name {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border: 1px solid #333;
+      border-radius: 999px;
+      background: transparent;
+      color: #666;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.25s, color 0.25s, background 0.25s;
+      letter-spacing: 0.3px;
+    }
+    .status-pill:hover { border-color: #555; color: #aaa; }
+    .status-pill.on { border-color: #4ade80; color: #4ade80; background: rgba(74,222,128,0.06); }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #444;
+      flex-shrink: 0;
+      transition: background 0.25s;
+    }
+    .status-pill.on .status-dot {
+      background: #4ade80;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .site-footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 50;
+      height: 38px;
+      background: rgba(15,15,15,0.96);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid #181818;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #2e2e2e;
+      letter-spacing: 0.2px;
+    }
+    .site-footer .footer-heart { color: #3a3a3a; }
+    .site-footer .footer-sep   { color: #1e1e1e; }
+    .footer-version { font-variant-numeric: tabular-nums; }
+    .share-btn {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #555;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .share-btn:hover { background: #1a1a1a; color: #fff; border-color: #555; }
+
+    .export-btn {
+      height: 34px; padding: 0 12px;
+      background: none; border: 1px solid #2a2a2a; border-radius: 8px;
+      color: #555; font-size: 12px; font-weight: 500; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .export-btn:hover { border-color: #555; color: #aaa; }
+
+    .import-row {
+      display: flex; gap: 8px; align-items: center;
+      padding: 12px 0 4px;
+      border-top: 1px solid #1a1a1a;
+      margin-top: 10px;
+    }
+    .import-input {
+      flex: 1; padding: 8px 10px;
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      color: #fff; font-size: 11px; font-family: monospace;
+      outline: none;
+    }
+    .import-input:focus { border-color: #4ade80; }
+    .import-apply-btn { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #2a2a2a; color: #555; background: none; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+    .import-apply-btn:hover { border-color: #4ade80; color: #4ade80; }
+    .import-cancel-btn { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid #2a2a2a; color: #555; background: none; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+    .import-cancel-btn:hover { border-color: #555; color: #aaa; }
+    .import-err { font-size: 11px; color: #f87171; }
+
+    /* ── TAB BAR ── */
+    .tab-bar {
+      position: sticky;
+      top: 56px;
+      z-index: 99;
+      background: rgba(15,15,15,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e1e1e;
+      display: flex;
+      padding: 0 80px;
+    }
+    .tab-btn {
+      padding: 14px 0;
+      margin-right: 32px;
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.2s;
+      letter-spacing: -0.1px;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: #aaa; }
+    .tab-btn.active { color: #fff; }
+    .tab-indicator {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: #4ade80;
+      border-radius: 1px 1px 0 0;
+      pointer-events: none;
+      transition: left 0.42s cubic-bezier(0.16,1,0.3,1), width 0.42s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    /* ── PANELS ── */
+    .panel > section:first-child { padding-top: 56px; }
+    .panel--hidden { display: none; }
+    /* Restore border on tutorial (last in scroll-part-1) since practice follows in scroll-part-2 */
+    .panel:first-child > section:last-child { border-bottom: 1px solid #141414; }
+    @keyframes panelFadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .panel:not(.panel--hidden) { animation: panelFadeIn 0.35s cubic-bezier(0.16,1,0.3,1); }
+
+    /* ── LAYOUT ── */
+    .layout {
+      display: flex;
+      flex: 1;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .main {
+      flex: 1;
+      padding: 0 80px 120px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    /* ── SECTIONS ── */
+    section {
+      padding-top: 96px;
+      border-bottom: 1px solid #141414;
+      padding-bottom: 72px;
+    }
+    section:last-child { border-bottom: none; }
+
+    .section-eyebrow {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #4ade80;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .section-heading {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+    .section-sub {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+      max-width: 560px;
+    }
+
+    /* ── INTRO ── */
+    #intro .hero {
+      margin-top: 32px;
+      display: flex;
+      align-items: flex-start;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+    #intro .hero-text { flex: 1; min-width: 260px; }
+    #intro .hero-text p {
+      font-size: 15px;
+      color: #999;
+      line-height: 1.7;
+      max-width: 460px;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      min-width: 260px;
+      flex: 0 0 260px;
+    }
+    .feature-chip {
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 13px;
+      color: #777;
+      text-align: center;
+    }
+    .feature-chip .chip-icon { font-size: 22px; margin-bottom: 6px; }
+    .feature-chip .chip-label { font-size: 11px; color: #555; margin-top: 2px; }
+
+    /* ── SETUP ── */
+    .step-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .step-card {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 14px;
+      padding: 24px 20px;
+      transition: border-color 0.2s;
+    }
+    .step-card:hover { border-color: #2a2a2a; }
+    .step-num {
+      width: 28px; height: 28px;
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #4ade80;
+      margin-bottom: 14px;
+    }
+    .step-icon { font-size: 28px; margin-bottom: 10px; }
+    .step-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .step-desc { font-size: 13px; color: #666; line-height: 1.5; }
+    .step-desc code {
+      background: #1e1e1e;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #4ade80;
+    }
+
+    /* ── TUTORIAL ── */
+    .video-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 32px;
+    }
+    .video-card {
+      border-radius: 14px;
+      overflow: hidden;
+      background: #141414;
+      border: 1px solid #1e1e1e;
+    }
+    .video-card.good { border-color: #1e3a2a; }
+    .video-card.bad  { border-color: #3a1e1e; }
+    .video-card video {
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+      display: block;
+    }
+    .video-placeholder {
+      width: 100%;
+      aspect-ratio: 16/9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #111;
+    }
+    .video-placeholder .ph-icon { font-size: 32px; opacity: 0.35; }
+    .video-placeholder .ph-text { font-size: 12px; color: #444; }
+    .video-card-label {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .video-card.good .video-card-label { color: #4ade80; }
+    .video-card.bad  .video-card-label { color: #f87171; }
+    .video-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    .video-card.good .video-badge { background: rgba(74,222,128,0.12); color: #4ade80; }
+    .video-card.bad  .video-badge { background: rgba(248,113,113,0.12); color: #f87171; }
+    .video-card-tip {
+      padding: 0 16px 14px;
+      font-size: 12px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    /* ── PRACTICE ── */
+    .preview-outer {
+      margin-top: 32px;
+    }
+    .preview-area {
+      position: relative;
+      width: 100%;
+      max-width: 520px;
+      aspect-ratio: 4/3;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 14px;
+      overflow: visible;
+    }
+    #previewVideo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+      display: none;
+    }
+    .preview-placeholder-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 14px;
+    }
+    .preview-placeholder-inner .ph-icon { font-size: 40px; opacity: 0.2; }
+    .preview-placeholder-inner .ph-text { font-size: 13px; color: #444; }
+    #gestureIndicator {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid #2a2a2a;
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #4ade80;
+      letter-spacing: 0.3px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: none;
+    }
+    #gestureIndicator:not(:empty) { opacity: 1; }
+    .preview-controls {
+      margin-top: 14px;
+      max-width: 520px;
+    }
+    .preview-btn {
+      width: 100%;
+      padding: 11px;
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      color: #888;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .preview-btn:hover { border-color: #444; color: #ccc; }
+    .preview-btn.active { border-color: #4ade80; color: #4ade80; }
+    .practice-hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #444;
+      line-height: 1.5;
+    }
+    .anchor-row {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .anchor-info { display: flex; flex-direction: column; gap: 2px; }
+    .anchor-label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.6px; }
+    .anchor-status { font-size: 13px; color: #888; font-weight: 500; }
+    .anchor-btns { display: flex; gap: 8px; }
+    .anchor-btn {
+      padding: 6px 12px;
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 7px;
+      color: #888;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+    .anchor-btn:hover { border-color: #444; color: #ccc; }
+    .anchor-btn.picking { border-color: #4ade80; color: #4ade80; }
+    .anchor-btn-clear { border-color: #3a1e1e; color: #f87171; }
+    .anchor-btn-clear:hover { border-color: #f87171; color: #f87171; }
+    .preview-area.picking { cursor: crosshair; }
+    .zone-size-row {
+      margin-top: 8px;
+      padding: 10px 14px;
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .zone-size-row input[type=range] {
+      flex: 1;
+      accent-color: #4ade80;
+      max-width: 180px;
+    }
+    .gesture-group-label {
+      padding: 10px 20px 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #555;
+      font-weight: 600;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    @keyframes previewFlash {
+      0%   { box-shadow: 0 0 0 3px #4ade80, 0 0 24px rgba(74,222,128,0.45); }
+      100% { box-shadow: none; }
+    }
+    .preview-flash { animation: previewFlash 0.6s ease-out forwards; }
+
+    /* ── SETTINGS ── */
+    .settings-card {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 14px;
+      padding: 4px 0;
+      margin-top: 32px;
+      overflow: hidden;
+    }
+    .gesture-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid #1a1a1a;
+      gap: 20px;
+    }
+    .gesture-row:last-child { border-bottom: none; }
+    .gesture-row-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .gesture-arrow-icon { font-size: 18px; }
+    .gesture-name { font-size: 14px; color: #888; }
+    select {
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #ccc;
+      font-size: 13px;
+      padding: 7px 10px;
+      cursor: pointer;
+      outline: none;
+      flex: 1;
+      max-width: 220px;
+      transition: border-color 0.2s;
+    }
+    select:focus { border-color: #4ade80; }
+    .save-row {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .save-btn {
+      padding: 12px 28px;
+      background: #4ade80;
+      border: none;
+      border-radius: 10px;
+      color: #000;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      letter-spacing: 0.1px;
+    }
+    .save-btn:hover { opacity: 0.85; }
+    .saved-msg {
+      font-size: 13px;
+      color: #4ade80;
+      min-height: 20px;
+    }
+
+    /* ── CURSOR SECTION ── */
+    .cursor-card {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 14px;
+      padding: 4px 0;
+      margin-top: 24px;
+      overflow: hidden;
+    }
+    .cursor-card-title {
+      padding: 14px 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .cursor-steps {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .cursor-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .cursor-step-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+      width: 28px;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .cursor-step-body { display: flex; flex-direction: column; gap: 2px; }
+    .cursor-step-label { font-size: 13px; font-weight: 600; color: #ccc; }
+    .cursor-step-desc { font-size: 12px; color: #555; line-height: 1.4; }
+    .cursor-toggle-row {
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .cursor-toggle-label { font-size: 14px; color: #888; }
+    .cursor-toggle-desc { font-size: 12px; color: #555; margin-top: 2px; }
+    .zone-frame {
+      position: relative;
+      aspect-ratio: 4/3;
+      background: #0a0a0a;
+      border: 1px solid #222;
+      border-radius: 10px;
+      cursor: crosshair;
+      overflow: hidden;
+      margin: 16px 20px 0;
+    }
+    .zone-frame-hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      color: rgba(255,255,255,0.15);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .zone-rect {
+      position: absolute;
+      border: 2px solid rgba(74,222,128,0.6);
+      background: rgba(74,222,128,0.06);
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    .zone-controls {
+      padding: 14px 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .zone-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .zone-slider-label { font-size: 13px; color: #666; width: 52px; flex-shrink: 0; }
+    .zone-slider-value { font-size: 13px; color: #888; width: 40px; text-align: right; flex-shrink: 0; }
+    .zone-slider-row input[type=range] {
+      flex: 1;
+      accent-color: #4ade80;
+    }
+    .zone-status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .zone-status-text { font-size: 12px; color: #555; }
+    .zone-reset-btn {
+      padding: 5px 12px;
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 7px;
+      color: #666;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .zone-reset-btn:hover { border-color: #444; color: #ccc; }
+
+    /* ── LIVE FEED CARD ── */
+    .live-card {
+      padding-top: 32px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid #141414;
+    }
+    .live-card .preview-area { max-width: 100%; }
+    .live-card + section { padding-top: 64px; }
+    .enable-camera-btn {
+      margin-top: 12px;
+      padding: 9px 22px;
+      background: #4ade80;
+      border: none;
+      border-radius: 8px;
+      color: #000;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .enable-camera-btn:hover { opacity: 0.85; }
+
+    .live-card > .zone-frame {
+      margin: 0;
+      border-radius: 14px;
+    }
+    #cursorVideo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .live-card > .zone-controls {
+      padding: 12px 0 0;
+    }
+    .more-settings-btn {
+      margin-left: auto;
+      padding: 12px 20px;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 10px;
+      color: #666;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+    .more-settings-btn:hover { border-color: #555; color: #aaa; }
+
+    /* ── FIRST RUN OVERLAY ── */
+    #firstRunOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(8,8,8,0.92);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      transition: opacity 0.4s ease;
+    }
+    .fr-dots {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 48px;
+    }
+    .fr-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #2a2a2a;
+      transition: background 0.3s;
+    }
+    .fr-dot.fr-active { background: #4ade80; }
+    .fr-step { display: none; width: 100%; max-width: 460px; }
+    .fr-step.fr-active {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: panelFadeIn 0.22s ease;
+    }
+    .fr-logo { width: 52px; height: 52px; border-radius: 14px; margin-bottom: 18px; }
+    .fr-big-icon { font-size: 48px; margin-bottom: 16px; line-height: 1; }
+    .fr-heading {
+      font-size: 26px; font-weight: 800; letter-spacing: -0.6px; margin-bottom: 10px;
+    }
+    .fr-sub {
+      font-size: 14px; color: #666; line-height: 1.65; max-width: 380px; margin-bottom: 28px;
+    }
+    .fr-chip-row {
+      display: flex; gap: 10px; margin-bottom: 32px; flex-wrap: wrap; justify-content: center;
+    }
+    .fr-chip {
+      background: #141414; border: 1px solid #1e1e1e; border-radius: 10px;
+      padding: 14px 10px; font-size: 12px; color: #777; min-width: 80px;
+    }
+    .fr-chip-icon { font-size: 22px; margin-bottom: 6px; }
+    .fr-btn-primary {
+      width: 100%; max-width: 360px; padding: 14px;
+      background: #4ade80; border: none; border-radius: 12px;
+      color: #000; font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.2s; letter-spacing: 0.1px;
+    }
+    .fr-btn-primary:hover { opacity: 0.85; }
+    .fr-btn-skip {
+      background: none; border: none; color: #444; font-size: 13px;
+      cursor: pointer; margin-top: 14px; transition: color 0.2s; padding: 4px 8px;
+    }
+    .fr-btn-skip:hover { color: #888; }
+    .fr-cam-err { font-size: 13px; color: #f87171; margin-top: 12px; min-height: 18px; }
+    .fr-video-wrap {
+      position: relative; width: 100%; max-width: 360px; aspect-ratio: 4/3;
+      background: #111; border: 1px solid #222; border-radius: 14px;
+      overflow: hidden; margin-bottom: 4px;
+    }
+    #frVideo {
+      position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    }
+    .fr-badge {
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      white-space: nowrap; background: rgba(0,0,0,0.7); border: 1px solid #2a2a2a;
+      border-radius: 999px; padding: 5px 14px; font-size: 13px; font-weight: 500;
+      color: #4ade80; opacity: 0; transition: opacity 0.15s; pointer-events: none;
+    }
+    .fr-badge:not(:empty) { opacity: 1; }
+
+    /* ── MOCKUP PANEL ── */
+    .mockup-panel {
+      margin-top: 40px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 24px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 16px;
+    }
+    .mockup-left {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px; flex-shrink: 0; width: 84px;
+    }
+    .mockup-gesture-card {
+      width: 72px; height: 72px;
+      background: #181818; border: 1px solid #252525; border-radius: 14px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    }
+    @keyframes mockupGlow {
+      0%   { border-color: rgba(74,222,128,0.9); box-shadow: 0 0 0 3px rgba(74,222,128,0.18); }
+      65%  { border-color: rgba(74,222,128,0.3); box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+      100% { border-color: #252525; box-shadow: none; }
+    }
+    .mockup-gesture-card.glow { animation: mockupGlow 2.4s ease forwards; }
+    .mockup-hand  { font-size: 26px; line-height: 1; }
+    .mockup-arrow { font-size: 16px; font-weight: 700; color: #4ade80; line-height: 1; }
+    @keyframes aUp    { from { opacity:0; transform: translateY(5px);  } to { opacity:1; transform:none; } }
+    @keyframes aDown  { from { opacity:0; transform: translateY(-5px); } to { opacity:1; transform:none; } }
+    @keyframes aLeft  { from { opacity:0; transform: translateX(5px);  } to { opacity:1; transform:none; } }
+    @keyframes aRight { from { opacity:0; transform: translateX(-5px); } to { opacity:1; transform:none; } }
+    .mockup-arrow.a-up    { animation: aUp    0.25s ease; }
+    .mockup-arrow.a-down  { animation: aDown  0.25s ease; }
+    .mockup-arrow.a-left  { animation: aLeft  0.25s ease; }
+    .mockup-arrow.a-right { animation: aRight 0.25s ease; }
+    .mockup-dir-name { font-size: 11px; color: #555; }
+    .mockup-sep { font-size: 14px; color: #2a2a2a; flex-shrink: 0; }
+    .mockup-right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+    .mockup-browser {
+      background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden;
+    }
+    .mockup-bar {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      background: #141414; border-bottom: 1px solid #1a1a1a;
+    }
+    .mockup-dots { display: flex; gap: 4px; flex-shrink: 0; }
+    .mockup-dot  { width: 7px; height: 7px; border-radius: 50%; }
+    .mockup-url  {
+      flex: 1; background: #1a1a1a; border-radius: 4px; padding: 2px 8px;
+      font-size: 10px; color: #333; text-align: center; white-space: nowrap; overflow: hidden;
+    }
+    .mockup-nav-btns { display: flex; gap: 5px; flex-shrink: 0; }
+    .mockup-nav-btn  { font-size: 14px; color: #2a2a2a; font-weight: 700; line-height: 1; transition: color 0.2s; }
+    .mockup-nav-btn.lit { color: #4ade80; }
+    .mockup-viewport { position: relative; height: 90px; overflow: hidden; }
+    .mockup-track    { padding: 10px 12px 0; display: flex; flex-direction: column; gap: 5px; will-change: transform; }
+    .mk-line { height: 6px; background: #1e1e1e; border-radius: 3px; flex-shrink: 0; }
+    .mk-line.h8  { height: 8px; background: #242424; }
+    .mk-line.w85 { width: 85%; } .mk-line.w70 { width: 70%; }
+    .mk-line.w55 { width: 55%; } .mk-line.w60 { width: 60%; }
+    .mockup-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 30px; font-weight: 800; color: rgba(74,222,128,0.8);
+      opacity: 0; transition: opacity 0.2s; pointer-events: none;
+    }
+    .mockup-overlay.show { opacity: 1; }
+    .mockup-action-tag {
+      font-size: 11px; color: #4ade80; font-weight: 600;
+      letter-spacing: 0.3px; text-align: right; padding-right: 2px;
+    }
+
+    /* ── ACHIEVEMENTS ── */
+    .achieve-shelf {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 32px;
+    }
+    .achieve-card {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 12px;
+      padding: 16px 10px 12px;
+      text-align: center;
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .achieve-card.unlocked {
+      border-color: rgba(74,222,128,0.35);
+      background: rgba(74,222,128,0.04);
+      box-shadow: var(--glow-sm);
+    }
+    .achieve-icon {
+      font-size: 26px;
+      margin-bottom: 7px;
+      display: block;
+      filter: grayscale(1);
+      opacity: 0.35;
+      transition: filter 0.4s, opacity 0.4s;
+    }
+    .achieve-card.unlocked .achieve-icon { filter: none; opacity: 1; }
+    .achieve-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #2e2e2e;
+      line-height: 1.3;
+      transition: color 0.3s;
+    }
+    .achieve-card.unlocked .achieve-name { color: #bbb; }
+    .achieve-desc {
+      font-size: 10px;
+      color: #222;
+      margin-top: 3px;
+      line-height: 1.3;
+      transition: color 0.3s;
+    }
+    .achieve-card.unlocked .achieve-desc { color: #555; }
+
+    /* ── PRESET PANEL ── */
+    .preset-trigger-btn {
+      padding: 12px 18px; background: transparent;
+      border: 1px solid #333; border-radius: 10px;
+      color: #666; font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: border-color 0.2s, color 0.2s; white-space: nowrap;
+    }
+    .preset-trigger-btn:hover { border-color: #555; color: #aaa; }
+
+    .preset-backdrop {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.55); opacity: 0;
+      transition: opacity 0.25s ease; pointer-events: none;
+    }
+    .preset-backdrop.show { opacity: 1; pointer-events: auto; }
+
+    .preset-panel {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 501;
+      background: #141414; border-top: 1px solid #222;
+      border-radius: 20px 20px 0 0;
+      padding: 0 32px 40px; max-height: 82vh; overflow-y: auto;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    .preset-panel.show { transform: translateY(0); }
+    .preset-drag-handle {
+      width: 36px; height: 4px; background: #2a2a2a; border-radius: 2px;
+      margin: 16px auto 20px;
+    }
+    .preset-panel-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 4px; }
+    .preset-panel-sub   { font-size: 13px; color: #555; margin-bottom: 20px; }
+
+    .preset-cards { display: flex; flex-direction: column; gap: 10px; }
+    .preset-card {
+      display: flex; gap: 14px; padding: 16px 18px;
+      background: #181818; border: 1px solid #222; border-radius: 12px;
+      cursor: pointer; transition: border-color 0.18s; align-items: flex-start;
+    }
+    .preset-card:hover   { border-color: #333; }
+    .preset-card.selected { border-color: #4ade80; background: rgba(74,222,128,0.03); }
+    .preset-card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; margin-top: 2px; }
+    .preset-card-name { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+    .preset-card-desc { font-size: 12px; color: #555; line-height: 1.45; margin-bottom: 10px; }
+    .preset-card-map  { display: flex; flex-wrap: wrap; gap: 5px; }
+    .preset-map-chip  {
+      padding: 3px 8px; background: #222; border-radius: 6px;
+      font-size: 11px; color: #666;
+    }
+    .preset-map-chip.changed { background: rgba(74,222,128,0.1); color: #4ade80; }
+
+    .preset-footer {
+      display: flex; align-items: center; gap: 14px; margin-top: 20px;
+    }
+    .preset-apply-btn {
+      padding: 11px 24px; background: #4ade80; border: none; border-radius: 10px;
+      color: #000; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.2s;
+    }
+    .preset-apply-btn:disabled { opacity: 0.3; cursor: default; }
+    .preset-apply-btn:not(:disabled):hover { opacity: 0.85; }
+    .preset-cancel-btn {
+      background: none; border: none; color: #555; font-size: 13px;
+      cursor: pointer; transition: color 0.2s;
+    }
+    .preset-cancel-btn:hover { color: #aaa; }
+
+    /* ── ACCORDION SETTINGS ── */
+    .accord-group { border-bottom: 1px solid #1a1a1a; }
+    .accord-group:last-child { border-bottom: none; }
+    .accord-header {
+      width: 100%; display: flex; align-items: center; gap: 10px;
+      padding: 12px 20px; background: none; border: none; cursor: pointer;
+      color: inherit; text-align: left; transition: background 0.15s;
+    }
+    .accord-header:hover { background: rgba(255,255,255,0.025); }
+    .accord-left  { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .accord-icon  { font-size: 15px; line-height: 1; }
+    .accord-name  { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.8px; }
+    .accord-sum   {
+      flex: 1; font-size: 11px; color: #333;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      text-align: right; padding: 0 8px;
+    }
+    .accord-chev  { font-size: 12px; color: #333; flex-shrink: 0; display: inline-block; transition: transform 0.22s; }
+    .accord-header.accord-open .accord-chev { transform: rotate(90deg); }
+    .accord-header.accord-open .accord-sum  { visibility: hidden; }
+    .accord-body  { height: 0; overflow: hidden; transition: height 0.42s cubic-bezier(0.16,1,0.3,1); }
+    .accord-header { transition: background 0.3s cubic-bezier(0.4,0,0.2,1); }
+
+    /* ── CURSOR TIMING ROWS ── */
+    .cursor-timing-row {
+      padding: 14px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .cursor-timing-control {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cursor-timing-control input[type=range] {
+      flex: 1;
+      accent-color: #4ade80;
+    }
+    .cursor-timing-value {
+      font-size: 13px;
+      color: #888;
+      width: 40px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── DESIGN TOKENS ─────────────────────────────────────────────── */
+    :root {
+      --bg-base:        #080808;
+      --bg-surface:     #0f0f0f;
+      --bg-raised:      #141414;
+      --bg-hover:       #1a1a1a;
+      --border-sub:     #1e1e1e;
+      --border-mid:     #252525;
+      --border-hi:      #333333;
+      --accent:         #4ade80;
+      --accent-glow:    rgba(74,222,128,0.18);
+      --accent-dim:     rgba(74,222,128,0.06);
+      --text-primary:   #ffffff;
+      --text-secondary: #888888;
+      --text-muted:     #555555;
+      --text-disabled:  #333333;
+      --red:            #f87171;
+      --glow-sm:  0 0 0 1px rgba(74,222,128,0.12), 0 0 12px rgba(74,222,128,0.08);
+      --glow-md:  0 0 0 2px rgba(74,222,128,0.25), 0 0 24px rgba(74,222,128,0.12);
+      --glow-lg:  0 0 0 3px rgba(74,222,128,0.5),  0 0 40px rgba(74,222,128,0.2);
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    body { background: #080808; }
+
+    /* ── GRADIENT TEXT ─────────────────────────────────────────────── */
+    .section-heading, .fr-heading {
+      background: linear-gradient(135deg, #fff 40%, #555 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── CARD DEPTH SHADOWS ────────────────────────────────────────── */
+    .settings-card, .step-card, .video-card, .cursor-card,
+    .mockup-panel, .preset-card { box-shadow: var(--shadow-card); }
+
+    .step-card:hover {
+      border-color: #333;
+      box-shadow: var(--glow-sm), var(--shadow-card);
+    }
+
+    /* ── MONOSPACE TECHNICAL VALUES ────────────────────────────────── */
+    .anchor-status, .zone-status-text, .cursor-timing-value,
+    .zone-slider-value, .footer-version {
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+    }
+
+    /* ── BENTO ENTRANCE ANIMATION ──────────────────────────────────── */
+    @keyframes bentoEnter {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── BENTO GRID ────────────────────────────────────────────────── */
+    .bento-section {
+      padding-top: 56px;
+      padding-bottom: 56px;
+      border-bottom: 1px solid #141414;
+    }
+
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-areas:
+        "hero   hero   camera camera"
+        "count  feat   camera camera"
+        "achiev achiev camera camera";
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .bento-tile {
+      background: #141414;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid #252525;
+      border-top-color: rgba(255,255,255,0.04);
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow   0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .bento-tile:hover {
+      border-color: #333;
+      box-shadow: var(--glow-sm), var(--shadow-card);
+    }
+
+    .bento-hero   { grid-area: hero; }
+    .bento-count  { grid-area: count; }
+    .bento-feat   { grid-area: feat; }
+    .bento-camera { grid-area: camera; display: flex; flex-direction: column; min-height: 360px; }
+    .bento-achiev { grid-area: achiev; }
+
+    .bento-tile-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #4ade80;
+      margin-bottom: 14px;
+    }
+
+    .bento-body {
+      font-size: 14px;
+      color: #888;
+      line-height: 1.65;
+    }
+
+    .bento-camera .preview-area {
+      max-width: none;
+      width: 100%;
+      aspect-ratio: 4/3;
+      overflow: hidden;
+    }
+    .bento-camera .anchor-row   { margin-top: 10px; }
+    .bento-camera .zone-size-row { margin-top: 8px; }
+
+    .bento-achiev .achieve-shelf { margin-top: 0; }
+
+    .mirror-inline-row {
+      margin-top: 8px;
+      padding: 8px 0 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    /* ── HERO SECTION ────────────────────────────────────────────────────── */
+    #hero {
+      padding-top: 80px;
+      padding-bottom: 80px;
+      border-bottom: 1px solid #141414;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Dot-grid ambient background */
+    #hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(124,58,237,0.055) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Vignette mask over dot grid */
+    #hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 90% 70% at 50% 50%, transparent 30%, #080808 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #hero > * { position: relative; z-index: 1; }
+
+    /* Animated gradient headline */
+    .hero-headline-wrap { margin-bottom: 20px; }
+
+    .hero-headline {
+      font-size: clamp(56px, 8vw, 88px);
+      font-weight: 900;
+      letter-spacing: -4px;
+      line-height: 0.95;
+      background: linear-gradient(
+        105deg,
+        #7c3aed  0%,
+        #a78bfa 20%,
+        #e2e8f0 45%,
+        #ffffff 50%,
+        #e2e8f0 55%,
+        #a78bfa 80%,
+        #7c3aed 100%
+      );
+      background-size: 300% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: heroGradientShift 6s ease-in-out infinite;
+      will-change: background-position;
+    }
+
+    @keyframes heroGradientShift {
+      0%   { background-position: 0%   50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0%   50%; }
+    }
+
+    .hero-sub-text {
+      font-size: 15px;
+      color: #666;
+      line-height: 1.65;
+      max-width: 500px;
+      margin-bottom: 48px;
+    }
+
+    /* Showcase wrapper — provides the perspective */
+    .hero-showcase-wrap {
+      perspective: 900px;
+      perspective-origin: 50% 40%;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    /* 3D tilt card */
+    .hero-showcase {
+      background: #141414;
+      border: 1px solid #252525;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      border-radius: 20px;
+      box-shadow:
+        0 1px 3px rgba(0,0,0,0.7),
+        0 8px 32px rgba(0,0,0,0.55),
+        0 0 0 1px rgba(124,58,237,0.08);
+      transform: rotateX(0deg) rotateY(0deg);
+      transform-style: preserve-3d;
+      will-change: transform;
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+      transition: box-shadow 0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    .hero-showcase:hover {
+      box-shadow:
+        0 1px 3px rgba(0,0,0,0.7),
+        0 12px 48px rgba(0,0,0,0.55),
+        0 0 0 1px rgba(124,58,237,0.2),
+        0 0 40px rgba(124,58,237,0.1);
+    }
+
+    /* Glare overlay */
+    .hero-glare {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 10;
+      background: transparent;
+      mix-blend-mode: screen;
+    }
+
+    /* Showcase inner content */
+    .hero-sc-inner {
+      padding: 24px 24px 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-sc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    .hero-sc-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hero-sc-pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #7c3aed;
+      box-shadow: 0 0 10px rgba(124,58,237,0.85);
+      flex-shrink: 0;
+      animation: heroScPulse 2.2s ease-in-out infinite;
+    }
+
+    @keyframes heroScPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.55; transform: scale(0.82); }
+    }
+
+    .hero-sc-name {
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      color: #a78bfa;
+    }
+
+    .hero-sc-status {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #4ade80;
+      background: rgba(74,222,128,0.06);
+      border: 1px solid rgba(74,222,128,0.18);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+    }
+
+    /* Gesture chip grid */
+    .hero-gesture-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .hero-gesture-chip {
+      background: #0f0f0f;
+      border: 1px solid #1e1e1e;
+      border-radius: 12px;
+      padding: 12px 6px 10px;
+      text-align: center;
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow   0.2s cubic-bezier(0.4,0,0.2,1);
+      animation: heroChipIn 0.5s cubic-bezier(0.4,0,0.2,1) both;
+      animation-delay: calc(var(--j, 0) * 60ms + 120ms);
+    }
+
+    .hero-gesture-chip:hover {
+      border-color: rgba(124,58,237,0.4);
+      box-shadow: 0 0 0 1px rgba(124,58,237,0.12), 0 0 16px rgba(124,58,237,0.1);
+    }
+
+    @keyframes heroChipIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    .hero-chip-icon {
+      font-size: 18px;
+      display: block;
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+
+    .hero-chip-dir {
+      font-size: 10px;
+      color: #555;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      margin-bottom: 4px;
+    }
+
+    .hero-chip-action {
+      font-size: 9px;
+      color: #7c3aed;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+
+    /* Stats bar */
+    .hero-sc-stats {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding-top: 12px;
+      border-top: 1px solid #1e1e1e;
+      flex-wrap: wrap;
+    }
+
+    .hero-sc-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hero-sc-stat-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .hero-sc-stat-dot--green  { background: #4ade80; animation: pulse 1.8s ease-in-out infinite; }
+    .hero-sc-stat-dot--purple { background: #a78bfa; }
+    .hero-sc-stat-dot--muted  { background: #444; }
+
+    .hero-sc-stat-text {
+      font-size: 11px;
+      color: #444;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+    }
+
+    .hero-sc-stat-text strong { color: #888; font-weight: 600; }
+
+    /* ── Hero canvas background ── */
+    #heroCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    #hero > * { position: relative; z-index: 1; }
+    #hero { position: relative; overflow: hidden; }
+
+    /* Hero tagline */
+    .hero-tagline {
+      font-size: 14px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-muted, #555);
+      margin-top: 10px;
+      margin-bottom: 0;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes heroBob {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(4px); }
+    }
+
+    /* CTA row */
+    .hero-cta-wrap {
+      margin-top: 40px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .hero-cta {
+      padding: 13px 32px;
+      background: var(--accent, #4ade80);
+      border: none;
+      border-radius: 10px;
+      color: #000;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: box-shadow 0.2s cubic-bezier(0.4,0,0.2,1),
+                  transform  0.2s cubic-bezier(0.34,1.56,0.64,1);
+    }
+
+    .hero-cta:hover {
+      box-shadow: var(--glow-md, 0 0 0 2px rgba(74,222,128,0.25), 0 0 24px rgba(74,222,128,0.12));
+      transform: scale(1.03);
+    }
+
+    .hero-cta:active {
+      transform: scale(0.96);
+      transition: transform 0.08s ease;
+    }
+
+    .hero-hint {
+      font-size: 12px;
+      color: var(--text-muted, #555);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      animation: heroBob 2s ease-in-out infinite;
+    }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       CUSTOM TOGGLE SWITCH
+    ───────────────────────────────────────────────────────────────────── */
+    .wavr-toggle {
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .wavr-toggle-input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+    .wavr-toggle-track {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 12px;
+      transition: background 0.25s cubic-bezier(0.4,0,0.2,1),
+                  border-color 0.25s cubic-bezier(0.4,0,0.2,1);
+      overflow: visible;
+    }
+    .wavr-toggle-input:checked + .wavr-toggle-track {
+      background: rgba(74,222,128,0.14);
+      border-color: rgba(74,222,128,0.55);
+    }
+    .wavr-toggle-thumb {
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: #555;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1),
+                  background 0.22s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow 0.22s;
+    }
+    .wavr-toggle-input:checked + .wavr-toggle-track .wavr-toggle-thumb {
+      transform: translateX(20px);
+      background: #4ade80;
+      box-shadow: 0 0 10px rgba(74,222,128,0.55);
+    }
+    .wavr-toggle-ripple {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: rgba(74,222,128,0.2);
+      transform: translate(-50%,-50%) scale(0);
+      pointer-events: none;
+      opacity: 0;
+      z-index: -1;
+    }
+    .wavr-toggle-ripple.fire {
+      animation: toggleRipplePop 0.45s cubic-bezier(0.4,0,0.2,1) forwards;
+    }
+    @keyframes toggleRipplePop {
+      from { transform: translate(-50%,-50%) scale(0); opacity: 1; }
+      to   { transform: translate(-50%,-50%) scale(1.9); opacity: 0; }
+    }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       BENTO CONTROL CARD (tile 1)
+    ───────────────────────────────────────────────────────────────────── */
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 0 12px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .ctrl-row-title { font-size: 14px; font-weight: 600; color: #ccc; margin-bottom: 3px; }
+    .ctrl-row-desc  { font-size: 11px; color: #555; }
+
+    .ctrl-counter-wrap {
+      padding: 14px 0 12px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .ctrl-counter-num {
+      font-size: 40px;
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 1;
+      background: linear-gradient(135deg, #fff 40%, #555 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      margin-bottom: 4px;
+    }
+    .ctrl-counter-label { font-size: 12px; color: #555; margin-bottom: 10px; }
+    .ctrl-progress-track {
+      height: 4px;
+      background: #181818;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 5px;
+    }
+    .ctrl-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #22d3ee);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
+    }
+    .ctrl-progress-label {
+      font-size: 10px;
+      color: #333;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+    }
+    .ctrl-stat-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding-top: 12px;
+    }
+    .ctrl-stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      background: #0f0f0f;
+      border: 1px solid #181818;
+      border-radius: 999px;
+      font-size: 10px;
+      color: #333;
+    }
+    .ctrl-stat-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .ctrl-stat-dot--green { background: #4ade80; animation: pulse 1.8s ease-in-out infinite; }
+    .ctrl-stat-dot--muted { background: #252525; }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       GESTURE MAP TILE (tile 3)
+    ───────────────────────────────────────────────────────────────────── */
+    .gmap-live-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #4ade80;
+      margin-left: 6px;
+      vertical-align: middle;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .gmap-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .gmap-chip {
+      background: #0f0f0f;
+      border: 1px solid #1e1e1e;
+      border-radius: 12px;
+      padding: 12px 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow   0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .gmap-chip:hover {
+      border-color: rgba(74,222,128,0.28);
+      box-shadow: var(--glow-sm);
+    }
+    .gmap-chip.gesture-flash {
+      border-color: rgba(74,222,128,0.7) !important;
+      box-shadow: var(--glow-lg) !important;
+      animation: springPop 0.45s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .gmap-chip-icon { font-size: 18px; line-height: 1; }
+    .gmap-chip-dir {
+      font-size: 10px;
+      color: #444;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .gmap-chip-action {
+      overflow: hidden;
+      height: 1.5em;
+      position: relative;
+    }
+    .gmap-action-text {
+      font-size: 11px;
+      color: #4ade80;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      display: block;
+      position: absolute;
+      width: 100%;
+      line-height: 1.5em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: transform 0.22s cubic-bezier(0.4,0,0.2,1),
+                  opacity   0.18s cubic-bezier(0.4,0,0.2,1);
+    }
+    .gmap-action-text.slide-out     { transform: translateY(-120%); opacity: 0; }
+    .gmap-action-text.slide-in-from { transform: translateY(120%);  opacity: 0; transition: none !important; }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       ACHIEVEMENT PROGRESS (tile 4)
+    ───────────────────────────────────────────────────────────────────── */
+    .ach-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .ach-count-label {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+    .ach-count-num {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 40%, #555 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+    }
+    .ach-count-den { font-size: 10px; color: #333; font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace; }
+    .ach-progress-track {
+      flex: 1;
+      height: 4px;
+      background: #181818;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .ach-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #22d3ee);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
+    }
+    @keyframes springPop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.06); }
+      70%  { transform: scale(0.97); }
+      100% { transform: scale(1); }
+    }
+    .achieve-card.just-unlocked { animation: springPop 0.45s cubic-bezier(0.34,1.56,0.64,1); }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       ANIMATED RANGE SLIDER
+    ───────────────────────────────────────────────────────────────────── */
+    input[type=range].wavr-range {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 4px;
+      background: linear-gradient(
+        90deg,
+        #4ade80 var(--slider-fill, 0%),
+        #1e1e1e var(--slider-fill, 0%)
+      );
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range].wavr-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 6px rgba(74,222,128,0.4);
+      cursor: pointer;
+      transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s;
+    }
+    input[type=range].wavr-range::-webkit-slider-thumb:hover {
+      transform: scale(1.28);
+      box-shadow: 0 0 14px rgba(74,222,128,0.6);
+    }
+    input[type=range].wavr-range::-moz-range-thumb {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #4ade80;
+      border: none;
+      box-shadow: 0 0 6px rgba(74,222,128,0.4);
+    }
+    input[type=range].wavr-range::-moz-range-track { background: transparent; }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       AMBIENT CURSOR GLOW
+    ───────────────────────────────────────────────────────────────────── */
+    #ambientGlow {
+      position: fixed;
+      top: 0; left: 0;
+      width: 720px;
+      height: 720px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at center,
+        rgba(124, 58, 237, 0.07) 0%,
+        rgba(74, 222, 128, 0.03) 38%,
+        transparent 66%
+      );
+      pointer-events: none;
+      transform: translate(-9999px, -9999px);
+      will-change: transform;
+      z-index: 0;
+      opacity: 0;
+      transition: opacity 0.5s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       SCROLL-DRIVEN REVEAL
+    ───────────────────────────────────────────────────────────────────── */
+    .scroll-reveal {
+      opacity: 0;
+      transform: translateY(26px) scale(0.983);
+      transition:
+        opacity   0.7s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .scroll-reveal.in-view {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Luxury step-card hover override */
+    .step-card {
+      transition: border-color 0.3s cubic-bezier(0.16,1,0.3,1),
+                  box-shadow   0.3s cubic-bezier(0.16,1,0.3,1);
+    }
+    .step-card:hover {
+      border-color: #333;
+      box-shadow: var(--glow-sm), var(--shadow-card);
+    }
+
+    /* Luxury preset-card hover */
+    .preset-card {
+      transition: border-color 0.3s cubic-bezier(0.16,1,0.3,1),
+                  background   0.3s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    /* Smoothed achieve-card transition */
+    .achieve-card {
+      transition: border-color   0.4s cubic-bezier(0.16,1,0.3,1),
+                  background     0.4s cubic-bezier(0.16,1,0.3,1),
+                  box-shadow     0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+    .achieve-card.unlocked {
+      box-shadow: 0 0 0 1px rgba(74,222,128,0.15), var(--shadow-card);
+    }
+
+    /* ── SCROLL PROGRESS BAR ──────────────────────────────────────────── */
+    #scrollProgress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0%;
+      background: var(--accent);
+      z-index: 200;
+      pointer-events: none;
+      transition: width 0.08s linear;
+    }
+
+    /* ── SECTION NAV SIDEBAR ──────────────────────────────────────────── */
+    #sectionNav {
+      position: fixed;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 90;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .snav-line {
+      width: 1px;
+      height: 14px;
+      background: #1e1e1e;
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+    .snav-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #2a2a2a;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+      transition: width 0.2s cubic-bezier(0.4,0,0.2,1),
+                  height 0.2s cubic-bezier(0.4,0,0.2,1),
+                  background 0.2s cubic-bezier(0.4,0,0.2,1),
+                  margin 0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .snav-dot:hover { background: #555; }
+    .snav-dot.active {
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      margin: 0 -2px;
+    }
+
+    /* ── SCROLL REVEAL ────────────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1),
+                  transform 0.6s cubic-bezier(0.16,1,0.3,1);
+    }
+    .reveal.revealed {
+      opacity: 1;
+      transform: none;
+    }
+    /* Restore hover transitions on bento tiles after reveal completes */
+    .bento-tile.revealed {
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow   0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* ── BENTO HERO TILE ─────────────────────────────────────────────────── */
+    .bento-hero-heading {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      line-height: 1.15;
+      margin-bottom: 10px;
+    }
+    .bento-hero-body {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .bento-hero-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .bento-hero-pill {
+      font-size: 11px;
+      border: 1px solid #2a2a2a;
+      border-radius: 999px;
+      padding: 5px 14px;
+      color: #555;
+      background: none;
+      cursor: default;
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  color        0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .bento-hero-pill:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── BENTO COUNT TILE ────────────────────────────────────────────────── */
+    .bento-count-num {
+      font-size: 64px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      margin-bottom: 4px;
+    }
+    .bento-count-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .bento-ring-wrap { display: flex; justify-content: center; }
+    .bento-arc-ring  { overflow: visible; }
+
+    /* ── BENTO FEAT TILE ─────────────────────────────────────────────────── */
+    .feat-chip-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .feat-chip {
+      background: #0f0f0f;
+      border: 1px solid var(--border-sub);
+      border-radius: 12px;
+      padding: 12px 10px;
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow   0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .feat-chip:hover {
+      border-color: var(--border-hi);
+      box-shadow: var(--glow-sm);
+    }
+    .feat-chip-icon {
+      font-size: 18px;
+      display: block;
+      margin-bottom: 6px;
+      transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .feat-chip:hover .feat-chip-icon { transform: translateY(-2px); }
+    .feat-chip-label { font-size: 12px; font-weight: 600; color: #ccc; line-height: 1.3; }
+    .feat-chip-sub   { font-size: 10px; color: #555; margin-top: 2px; }
+
+    /* ── GESTURE EXPLORER SECTION ────────────────────────────────────────── */
+    #gesture-explorer {
+      padding-top: 96px;
+      padding-bottom: 72px;
+      border-bottom: 1px solid #141414;
+    }
+
+    .explorer-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-top: 40px;
+      max-width: 820px;
+    }
+
+    .explorer-pose-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .explorer-pose-chip {
+      padding: 10px 14px;
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      background: none;
+      font-size: 12px;
+      color: #666;
+      cursor: pointer;
+      transition: border-color 0.18s, color 0.18s, background 0.18s, box-shadow 0.18s;
+    }
+    .explorer-pose-chip:hover { border-color: var(--border-hi); color: #aaa; }
+    .explorer-pose-chip.active {
+      border-color: rgba(74,222,128,0.35);
+      color: var(--accent);
+      background: var(--accent-dim);
+      box-shadow: var(--glow-sm);
+    }
+
+    .explorer-dpad {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .dpad-row { display: flex; align-items: center; gap: 6px; }
+    .dpad-btn {
+      width: 44px; height: 44px;
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      background: none;
+      font-size: 18px;
+      color: #555;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+    .dpad-btn:hover  { border-color: var(--border-hi); color: #aaa; }
+    .dpad-btn:active { transform: scale(0.88); transition: transform 0.08s; }
+    .dpad-btn.active {
+      border-color: rgba(74,222,128,0.4);
+      color: var(--accent);
+      box-shadow: var(--glow-sm);
+    }
+    .dpad-center {
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      color: #333; font-size: 14px; pointer-events: none;
+    }
+
+    .explorer-key {
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 6px;
+    }
+    .explorer-action-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      min-height: 20px;
+    }
+
+    .explorer-mockup-wrap { position: relative; }
+    .explorer-mockup-wrap .mockup-browser { width: 100%; }
+    .explorer-mockup-wrap .mockup-viewport { height: 200px; position: relative; }
+
+    .explorer-none-label {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
+      color: #444;
+      display: none;
+      pointer-events: none;
+    }
+    .explorer-action-badge {
+      position: absolute;
+      bottom: 12px; left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      background: rgba(0,0,0,0.85);
+      border: 1px solid var(--border-mid);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .explorer-action-badge.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .mockup-url { transition: opacity 0.15s ease; }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .blink-cursor { animation: blink 1s step-end infinite; }
+
+    /* ── PHASE 5: GESTURE ROW CARDS ──────────────────────────────────── */
+    .accord-body-inner {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .gesture-row-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-sub);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow   0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .gesture-row-card:hover {
+      border-color: var(--border-hi);
+      box-shadow: var(--glow-sm);
+    }
+    .gesture-dir-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: rgba(74,222,128,0.06);
+      border: 1px solid rgba(74,222,128,0.12);
+      border-radius: 8px;
+      color: var(--accent);
+      flex-shrink: 0;
+      transition: transform 0.2s ease;
+    }
+    .gesture-dir-svg { width: 14px; height: 14px; }
+    .gesture-row-card[data-dir="up"]:hover    .gesture-dir-icon { transform: translateY(-3px); }
+    .gesture-row-card[data-dir="down"]:hover  .gesture-dir-icon { transform: translateY(3px); }
+    .gesture-row-card[data-dir="left"]:hover  .gesture-dir-icon { transform: translateX(-3px); }
+    .gesture-row-card[data-dir="right"]:hover .gesture-dir-icon { transform: translateX(3px); }
+    .gesture-row-card .gesture-name {
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      font-size: 12px;
+      color: #666;
+      flex: 1;
+    }
+    .gesture-row-card select {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-mid);
+      border-radius: 8px;
+      color: #ccc;
+      font-size: 12px;
+      padding: 6px 10px;
+      cursor: pointer;
+      outline: none;
+      max-width: 200px;
+      flex-shrink: 0;
+      transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1),
+                  box-shadow   0.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .gesture-row-card select:focus {
+      border-color: var(--accent);
+      box-shadow: var(--glow-sm);
+    }
+
+    /* ── PHASE 5: SAVE BUTTON ANIMATION ──────────────────────────────── */
+    .save-btn.saving  { opacity: 0.6; pointer-events: none; }
+    .save-btn.saved {
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      animation: springPop 0.45s cubic-bezier(0.34,1.56,0.64,1);
+    }
+
+    /* ── PHASE 5: ACCORDION SUMMARY FLASH ────────────────────────────── */
+    @keyframes chipFlash { 0% { color: var(--accent); } 100% { color: #333; } }
+    .accord-sum.flash { animation: chipFlash 0.5s ease; }
+
+    /* ── PHASE 5: SCROLL PROGRESS GRADIENT ───────────────────────────── */
+    #scrollProgress {
+      background: linear-gradient(90deg, #7c3aed, var(--accent));
+      box-shadow: 0 0 6px rgba(74,222,128,0.5);
+    }
+
+    /* ── PHASE 5: TOPBAR SCROLL SHADOW ───────────────────────────────── */
+    .topbar { transition: box-shadow 0.3s ease; }
+    .topbar.scrolled {
+      box-shadow: 0 1px 0 var(--border-sub), 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    /* ── PHASE 5: GLOBAL BUTTON MICRO-INTERACTIONS ────────────────────── */
+    button:not(.status-pill):not(.hero-cta):not(.save-btn):active,
+    [role="button"]:active {
+      transform: scale(0.96);
+      transition: transform 80ms ease !important;
+    }
+    button:focus-visible {
+      outline: 2px solid rgba(74,222,128,0.5);
+      outline-offset: 3px;
+      border-radius: inherit;
+    }
+
+    /* ── PHASE 5: FIRST-RUN SLIDE TRANSITIONS ────────────────────────── */
+    @keyframes frSlideOut {
+      from { opacity: 1; transform: translateX(0); }
+      to   { opacity: 0; transform: translateX(-20px); }
+    }
+    @keyframes frSlideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .fr-step.fr-exiting {
+      display: flex !important;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: frSlideOut 0.28s cubic-bezier(0.4,0,0.2,1) forwards;
+    }
+    .fr-step.fr-entering { animation: frSlideIn 0.28s cubic-bezier(0.4,0,0.2,1) both; }
+
+    /* ── PHASE 5: FOOTER GLOW ─────────────────────────────────────────── */
+    .site-footer { position: relative; overflow: hidden; }
+    .site-footer::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: radial-gradient(ellipse 50% 100% at 50% 0%, rgba(74,222,128,0.04) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .site-footer > * { position: relative; z-index: 1; }
+    .footer-version {
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Scroll progress bar -->
+  <div id="scrollProgress" aria-hidden="true"></div>
+
+  <!-- Ambient cursor glow — GPU-composited, pointer-events: none -->
+  <div id="ambientGlow" aria-hidden="true"></div>
+
+  <!-- Section nav sidebar -->
+  <nav id="sectionNav" aria-label="Page sections">
+    <button class="snav-dot snav-scroll-only" data-target="hero" title="Hero"></button>
+    <div class="snav-line snav-scroll-only"></div>
+    <button class="snav-dot snav-scroll-only" data-target="intro" title="Overview"></button>
+    <div class="snav-line snav-scroll-only"></div>
+    <button class="snav-dot snav-scroll-only" data-target="gesture-explorer" title="Gesture Explorer"></button>
+    <div class="snav-line snav-scroll-only"></div>
+    <button class="snav-dot snav-scroll-only" data-target="setup" title="Setup"></button>
+    <div class="snav-line snav-scroll-only"></div>
+    <button class="snav-dot snav-scroll-only" data-target="tutorial" title="Tutorial"></button>
+    <div class="snav-line snav-scroll-only"></div>
+    <button class="snav-dot snav-scroll-only" data-target="settings" title="Settings"></button>
+    <button class="snav-dot snav-cursor-only" data-target="cursor-settings" title="Cursor Settings"></button>
+  </nav>
+
+  <!-- FIRST RUN OVERLAY -->
+  <div id="firstRunOverlay">
+    <div class="fr-dots">
+      <span class="fr-dot fr-active"></span>
+      <span class="fr-dot"></span>
+      <span class="fr-dot"></span>
+    </div>
+
+    <!-- Step 1: Welcome -->
+    <div class="fr-step fr-active" id="frStep1">
+      <img src="../../icons/icon48.png" class="fr-logo" alt="">
+      <h1 class="fr-heading">Welcome to Wavr</h1>
+      <p class="fr-sub">Wave to scroll, navigate, and click in Chrome — no touching required.</p>
+      <div class="fr-chip-row">
+        <div class="fr-chip"><div class="fr-chip-icon">👆</div>Swipe up</div>
+        <div class="fr-chip"><div class="fr-chip-icon">👇</div>Swipe down</div>
+        <div class="fr-chip"><div class="fr-chip-icon">👈</div>Go back</div>
+        <div class="fr-chip"><div class="fr-chip-icon">👉</div>Go forward</div>
+      </div>
+      <button class="fr-btn-primary" id="frNext1">Get started</button>
+    </div>
+
+    <!-- Step 2: Camera permission -->
+    <div class="fr-step" id="frStep2">
+      <div class="fr-big-icon">📷</div>
+      <h2 class="fr-heading">Camera access needed</h2>
+      <p class="fr-sub">Wavr uses your camera to detect hand movements. No video is recorded or sent anywhere — all processing happens locally on your device.</p>
+      <button class="fr-btn-primary" id="frAllowCamera">Allow camera access</button>
+      <button class="fr-btn-skip" id="frSkipCamera">Skip for now</button>
+      <p class="fr-cam-err" id="frCamError"></p>
+    </div>
+
+    <!-- Step 3: First gesture -->
+    <div class="fr-step" id="frStep3">
+      <h2 class="fr-heading">Try your first gesture</h2>
+      <p class="fr-sub">Hold your open palm in front of the camera and swipe in any direction.</p>
+      <div class="fr-video-wrap">
+        <video id="frVideo" autoplay playsinline muted></video>
+        <div class="fr-badge" id="frGestureBadge"></div>
+      </div>
+      <button class="fr-btn-skip" id="frSkipGesture">Skip →</button>
+    </div>
+  </div>
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <img src="../../icons/icon48.png" class="topbar-icon-img" alt="Wavr">
+      <span class="topbar-name">Wavr</span>
+    </div>
+    <div class="topbar-right">
+      <button class="share-btn" id="shareWavrBtn" title="Share Wavr">↗</button>
+      <button class="status-pill" id="statusPill">
+        <span class="status-dot"></span>
+        <span id="statusLabel">OFF</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- TAB BAR -->
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn active" data-panel="scroll">Scroll Mode</button>
+    <button class="tab-btn" data-panel="cursor">Cursor Mode</button>
+    <span class="tab-indicator" id="tabIndicator"></span>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+
+    <!-- MAIN -->
+    <main class="main">
+
+      <div class="panel" data-panel="scroll">
+
+      <!-- HERO -->
+      <section id="hero">
+
+        <div class="hero-headline-wrap reveal" data-reveal-i="0">
+          <h1 class="hero-headline">Control Chrome<br>with your hands.</h1>
+        </div>
+        <p class="hero-tagline reveal" data-reveal-i="1">Gesture. Control. Anywhere.</p>
+        <p class="hero-sub-text">MediaPipe gesture detection — running entirely in your browser. No data leaves your device.</p>
+
+        <!-- 3D Tilt Showcase -->
+        <div class="hero-showcase-wrap">
+          <div class="hero-showcase" id="heroShowcase">
+            <div class="hero-glare" id="heroGlare"></div>
+            <div class="hero-sc-inner">
+              <div class="hero-sc-header">
+                <div class="hero-sc-title">
+                  <span class="hero-sc-pulse"></span>
+                  <span class="hero-sc-name">wavr_engine</span>
+                </div>
+                <span class="hero-sc-status">ACTIVE</span>
+              </div>
+              <div class="hero-gesture-grid">
+                <div class="hero-gesture-chip" style="--j:0">
+                  <span class="hero-chip-icon">🖐</span>
+                  <div class="hero-chip-dir">Swipe Up</div>
+                  <div class="hero-chip-action">scroll_up</div>
+                </div>
+                <div class="hero-gesture-chip" style="--j:1">
+                  <span class="hero-chip-icon">🖐</span>
+                  <div class="hero-chip-dir">Swipe Down</div>
+                  <div class="hero-chip-action">scroll_dn</div>
+                </div>
+                <div class="hero-gesture-chip" style="--j:2">
+                  <span class="hero-chip-icon">🖐</span>
+                  <div class="hero-chip-dir">Swipe Left</div>
+                  <div class="hero-chip-action">go_back</div>
+                </div>
+                <div class="hero-gesture-chip" style="--j:3">
+                  <span class="hero-chip-icon">🖐</span>
+                  <div class="hero-chip-dir">Swipe Right</div>
+                  <div class="hero-chip-action">go_fwd</div>
+                </div>
+              </div>
+              <div class="hero-sc-stats">
+                <div class="hero-sc-stat">
+                  <span class="hero-sc-stat-dot hero-sc-stat-dot--green"></span>
+                  <span class="hero-sc-stat-text"><strong>16</strong> gestures mapped</span>
+                </div>
+                <div class="hero-sc-stat">
+                  <span class="hero-sc-stat-dot hero-sc-stat-dot--purple"></span>
+                  <span class="hero-sc-stat-text"><strong>on-device</strong> inference</span>
+                </div>
+                <div class="hero-sc-stat">
+                  <span class="hero-sc-stat-dot hero-sc-stat-dot--muted"></span>
+                  <span class="hero-sc-stat-text"><strong>0 bytes</strong> sent</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CTA -->
+        <div class="hero-cta-wrap reveal" data-reveal-i="2">
+          <button class="hero-cta" id="heroCta">Enable Camera</button>
+          <span class="hero-hint">↓ Scroll to explore</span>
+        </div>
+
+      </section>
+
+      <!-- INTRO -->
+      <section id="intro" class="bento-section">
+        <div class="section-eyebrow">v1.0.0</div>
+        <h1 class="section-heading reveal" data-reveal-i="0">Wavr</h1>
+        <p class="section-sub">Wave to scroll. Control Chrome with your hands — no touching required.</p>
+
+        <div class="bento-grid">
+
+          <!-- Tile: Hero (area: hero, cols 1–2, row 1) -->
+          <div class="bento-tile bento-hero reveal" data-reveal-i="0">
+            <h3 class="bento-hero-heading section-heading">Control Chrome<br>with your hands.</h3>
+            <p class="bento-hero-body">16 gesture mappings. Zero plugins. All on-device.</p>
+            <div class="bento-hero-pills">
+              <span class="bento-hero-pill">✦ Scroll</span>
+              <span class="bento-hero-pill">✦ Navigate</span>
+              <span class="bento-hero-pill">✦ Click</span>
+            </div>
+          </div>
+
+          <!-- Tile: Gesture Count (area: count, col 1, row 2) -->
+          <div class="bento-tile bento-count reveal" data-reveal-i="1">
+            <div class="bento-tile-label">Gestures</div>
+            <div class="bento-count-num" id="bentoGestureCount">0</div>
+            <div class="bento-count-label">gestures fired</div>
+            <div class="bento-ring-wrap">
+              <svg class="bento-arc-ring" viewBox="0 0 80 80" width="72" height="72">
+                <circle cx="40" cy="40" r="36" fill="none" stroke="#1e1e1e" stroke-width="4"/>
+                <circle id="bentoRing" cx="40" cy="40" r="36" fill="none"
+                        stroke="#4ade80" stroke-width="4"
+                        stroke-dasharray="226" stroke-dashoffset="226"
+                        stroke-linecap="round"
+                        transform="rotate(-90 40 40)"
+                        style="transition: stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1);"/>
+              </svg>
+            </div>
+            <div id="bentoGestureBar" style="display:none"></div>
+            <div id="bentoProgressLabel" style="display:none"></div>
+          </div>
+
+          <!-- Tile: Features (area: feat, col 2, row 2) -->
+          <div class="bento-tile bento-feat reveal" data-reveal-i="2">
+            <div class="bento-tile-label">Features</div>
+            <div class="feat-chip-grid">
+              <div class="feat-chip">
+                <span class="feat-chip-icon">👁</span>
+                <div class="feat-chip-label">On-Device</div>
+                <div class="feat-chip-sub">No cloud</div>
+              </div>
+              <div class="feat-chip">
+                <span class="feat-chip-icon">⚡</span>
+                <div class="feat-chip-label">16 Gestures</div>
+                <div class="feat-chip-sub">Fully mapped</div>
+              </div>
+              <div class="feat-chip">
+                <span class="feat-chip-icon">🔒</span>
+                <div class="feat-chip-label">Private</div>
+                <div class="feat-chip-sub">Camera stays local</div>
+              </div>
+              <div class="feat-chip">
+                <span class="feat-chip-icon">🖱</span>
+                <div class="feat-chip-label">Cursor Mode</div>
+                <div class="feat-chip-sub">Point &amp; click</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tile: Live camera preview (area: camera, cols 3–4, rows 1–3) -->
+          <div class="bento-tile bento-camera reveal" data-reveal-i="3">
+            <div class="bento-tile-label">LIVE PREVIEW</div>
+            <div class="preview-area">
+              <div class="preview-placeholder-inner" id="permCard">
+                <div class="ph-icon">📷</div>
+                <div class="ph-text">Camera access needed to detect gestures</div>
+                <button class="enable-camera-btn" id="enableCameraBtn">Enable Camera</button>
+              </div>
+              <video id="previewVideo" autoplay playsinline muted></video>
+              <canvas id="previewCanvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:14px;pointer-events:none;"></canvas>
+              <div id="gestureIndicator"></div>
+            </div>
+            <div class="anchor-row">
+              <div class="anchor-info">
+                <span class="anchor-label">Dead zone anchor</span>
+                <span class="anchor-status" id="anchorStatus">Auto</span>
+              </div>
+              <div class="anchor-btns">
+                <button class="anchor-btn" id="anchorPickBtn">Click preview to set</button>
+                <button class="anchor-btn anchor-btn-clear" id="anchorClearBtn">Reset to centre</button>
+              </div>
+            </div>
+            <div class="zone-size-row">
+              <div class="anchor-info">
+                <span class="anchor-label">Dead zone size</span>
+                <span class="anchor-status" id="zoneSizeStatus">Medium</span>
+              </div>
+              <input type="range" id="zoneSizeSlider" min="5" max="30" value="10" step="1" class="wavr-range" style="--slider-fill:20%">
+            </div>
+            <div class="mirror-inline-row">
+              <span class="anchor-label">Mirror X</span>
+              <label class="wavr-toggle">
+                <input type="checkbox" id="scrollMirrorX" class="wavr-toggle-input">
+                <span class="wavr-toggle-track">
+                  <span class="wavr-toggle-thumb"></span>
+                  <span class="wavr-toggle-ripple"></span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Tile: Achievements (area: achiev, cols 1–2, row 3) -->
+          <div class="bento-tile bento-achiev reveal" data-reveal-i="4">
+            <div class="bento-tile-label">Achievements</div>
+            <div class="ach-progress-row">
+              <div class="ach-count-label">
+                <span class="ach-count-num" id="achCountNum">0</span>
+                <span class="ach-count-den">/10</span>
+              </div>
+              <div class="ach-progress-track">
+                <div class="ach-progress-fill" id="achProgressFill"></div>
+              </div>
+            </div>
+            <div class="achieve-shelf">
+              <div class="achieve-card" id="ach-first">
+                <span class="achieve-icon">🖐</span>
+                <div class="achieve-name">First Wave</div>
+                <div class="achieve-desc">Make your first gesture</div>
+              </div>
+              <div class="achieve-card" id="ach-ten">
+                <span class="achieve-icon">💯</span>
+                <div class="achieve-name">Ten Waves</div>
+                <div class="achieve-desc">Detect 10 gestures</div>
+              </div>
+              <div class="achieve-card" id="ach-cursor">
+                <span class="achieve-icon">👆</span>
+                <div class="achieve-name">Cursor Mode</div>
+                <div class="achieve-desc">Try cursor mode</div>
+              </div>
+              <div class="achieve-card" id="ach-preset">
+                <span class="achieve-icon">🎨</span>
+                <div class="achieve-name">Preset Pro</div>
+                <div class="achieve-desc">Apply a preset</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /bento-grid -->
+
+      </section>
+
+      <!-- GESTURE EXPLORER -->
+      <section id="gesture-explorer">
+        <div class="section-eyebrow">INTERACTIVE DEMO<span class="blink-cursor">|</span></div>
+        <h2 class="section-heading reveal" data-reveal-i="0">Try a gesture</h2>
+        <p class="section-sub">Pick a hand pose and swipe direction to see what happens in the browser.</p>
+
+        <div class="explorer-layout">
+          <!-- Left: Gesture Picker -->
+          <div class="explorer-left">
+            <div class="explorer-pose-row">
+              <button class="explorer-pose-chip active" data-pose="open">🖐 Open Palm</button>
+              <button class="explorer-pose-chip" data-pose="closed">✊ Closed Fist</button>
+              <button class="explorer-pose-chip" data-pose="pointing">☝ Pointing</button>
+              <button class="explorer-pose-chip" data-pose="victory">✌ Victory</button>
+            </div>
+
+            <div class="explorer-dpad">
+              <button class="dpad-btn" data-dir="up">↑</button>
+              <div class="dpad-row">
+                <button class="dpad-btn" data-dir="left">←</button>
+                <div class="dpad-center">○</div>
+                <button class="dpad-btn" data-dir="right">→</button>
+              </div>
+              <button class="dpad-btn" data-dir="down">↓</button>
+            </div>
+
+            <div class="explorer-key" id="explorerKey">open_swipe_up</div>
+            <div class="explorer-action-text" id="explorerActionText">--</div>
+          </div>
+
+          <!-- Right: Animated Browser Mockup -->
+          <div class="explorer-right">
+            <div class="explorer-mockup-wrap">
+              <div class="mockup-browser">
+                <div class="mockup-bar">
+                  <div class="mockup-dots">
+                    <div class="mockup-dot" style="background:#ff5f57"></div>
+                    <div class="mockup-dot" style="background:#febc2e"></div>
+                    <div class="mockup-dot" style="background:#28c840"></div>
+                  </div>
+                  <div class="mockup-url" id="explorerUrl">wavr.io/demo</div>
+                  <div class="mockup-nav-btns">
+                    <span class="mockup-nav-btn" id="explorerNavBack">‹</span>
+                    <span class="mockup-nav-btn" id="explorerNavFwd">›</span>
+                  </div>
+                </div>
+                <div class="mockup-viewport">
+                  <div class="mockup-track" id="explorerTrack">
+                    <div class="mk-line h8 w70"></div>
+                    <div class="mk-line"></div>
+                    <div class="mk-line w85"></div>
+                    <div class="mk-line w55"></div>
+                    <div class="mk-line"></div>
+                    <div class="mk-line w70"></div>
+                    <div class="mk-line h8 w85" style="margin-top:4px"></div>
+                    <div class="mk-line"></div>
+                    <div class="mk-line w55"></div>
+                    <div class="mk-line w85"></div>
+                    <div class="mk-line"></div>
+                    <div class="mk-line w70"></div>
+                  </div>
+                  <div class="mockup-overlay" id="explorerOverlay"></div>
+                  <div class="explorer-none-label" id="explorerNoneLabel">No action mapped</div>
+                  <div class="explorer-action-badge" id="explorerActionBadge"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETUP -->
+      <section id="setup">
+        <div class="section-eyebrow">First Time</div>
+        <h2 class="section-heading reveal" data-reveal-i="0">Setup</h2>
+        <p class="section-sub">Grant camera permission once. You only need to do this the first time.</p>
+
+        <div class="step-grid">
+          <div class="step-card reveal" data-reveal-i="0">
+            <div class="step-num">1</div>
+            <div class="step-icon">🌐</div>
+            <div class="step-title">Open Extensions</div>
+            <div class="step-desc">Navigate to <code>chrome://extensions</code> in the address bar.</div>
+          </div>
+          <div class="step-card reveal" data-reveal-i="1">
+            <div class="step-num">2</div>
+            <div class="step-icon">🔍</div>
+            <div class="step-title">Find Wavr</div>
+            <div class="step-desc">Locate Wavr in the list and flip it on.</div>
+          </div>
+          <div class="step-card reveal" data-reveal-i="2">
+            <div class="step-num">3</div>
+            <div class="step-icon">📸</div>
+            <div class="step-title">Allow Camera</div>
+            <div class="step-desc">Under <strong>Camera</strong>, select <strong>Allow</strong>. Then click the toolbar icon to activate.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TUTORIAL -->
+      <section id="tutorial">
+        <div class="section-eyebrow">Learn</div>
+        <h2 class="section-heading reveal" data-reveal-i="0">Tutorial</h2>
+        <p class="section-sub">Good hand placement and lighting make gesture detection fast and reliable.</p>
+
+        <div class="video-pair">
+          <div class="video-card good">
+            <div id="placeholderGood" class="video-placeholder">
+              <div class="ph-icon">✅</div>
+              <div class="ph-text">Tutorial video loading…</div>
+            </div>
+            <video id="videoGood" autoplay loop muted playsinline style="display:none;"></video>
+            <div class="video-card-label">
+              <span class="video-badge">✓ DO THIS</span>
+              Good technique
+            </div>
+            <div class="video-card-tip">Keep your hand 30–50 cm from camera, fingers spread, neutral background, good lighting.</div>
+          </div>
+          <div class="video-card bad">
+            <div id="placeholderBad" class="video-placeholder">
+              <div class="ph-icon">❌</div>
+              <div class="ph-text">Tutorial video loading…</div>
+            </div>
+            <video id="videoBad" autoplay loop muted playsinline style="display:none;"></video>
+            <div class="video-card-label">
+              <span class="video-badge">✗ AVOID</span>
+              Common mistakes
+            </div>
+            <div class="video-card-tip">Avoid dark rooms, busy backgrounds, hands too close/far, or fast jerky movements.</div>
+          </div>
+        </div>
+      </section>
+
+      </div><!-- /panel scroll part 1 -->
+
+      <div class="panel panel--hidden" data-panel="cursor">
+
+      <!-- CURSOR ZONE LIVE CARD -->
+      <div class="live-card">
+        <div class="zone-frame" id="cursorZoneFrame">
+          <video id="cursorVideo" autoplay playsinline muted></video>
+          <div class="zone-rect" id="cursorZoneRect"></div>
+          <canvas id="cursorCanvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+          <div class="zone-frame-hint">Click to set zone centre</div>
+        </div>
+        <div class="zone-controls">
+          <div class="zone-slider-row">
+            <span class="zone-slider-label">Width</span>
+            <input type="range" id="cursorZoneW" min="20" max="100" step="1" value="60" class="wavr-range" style="--slider-fill:50%">
+            <span class="zone-slider-value" id="cursorZoneWLabel">60%</span>
+          </div>
+          <div class="zone-slider-row">
+            <span class="zone-slider-label">Height</span>
+            <input type="range" id="cursorZoneH" min="20" max="100" step="1" value="60" class="wavr-range" style="--slider-fill:50%">
+            <span class="zone-slider-value" id="cursorZoneHLabel">60%</span>
+          </div>
+          <div class="zone-status-row">
+            <span class="zone-status-text" id="cursorZoneStatus">Centre 50%, 50% — 60% × 60%</span>
+            <button class="zone-reset-btn" id="cursorZoneReset">Reset to centre</button>
+          </div>
+          <div class="mirror-inline-row" style="margin-top:10px;">
+            <span class="zone-slider-label">Mirror X</span>
+            <label class="wavr-toggle">
+              <input type="checkbox" id="cursorMirrorXLive" class="wavr-toggle-input">
+              <span class="wavr-toggle-track">
+                <span class="wavr-toggle-thumb"></span>
+                <span class="wavr-toggle-ripple"></span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- CURSOR -->
+      <section id="cursor">
+        <div class="section-eyebrow">Virtual Cursor</div>
+        <h2 class="section-heading reveal" data-reveal-i="0">Cursor</h2>
+        <p class="section-sub">Control a virtual cursor on screen using your hand — move, aim, and click without touching anything.</p>
+
+        <div class="cursor-card">
+          <div class="cursor-card-title">How cursor mode works</div>
+          <div class="cursor-steps">
+            <div class="cursor-step">
+              <div class="cursor-step-icon">👍</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">Hold Thumb Up (~0.4 s)</div>
+                <div class="cursor-step-desc">Hold your thumb up to toggle cursor mode on or off</div>
+              </div>
+            </div>
+            <div class="cursor-step">
+              <div class="cursor-step-icon">🖐</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">Open palm → move cursor</div>
+                <div class="cursor-step-desc">Move your wrist within the Cursor Zone to position the cursor on screen</div>
+              </div>
+            </div>
+            <div class="cursor-step">
+              <div class="cursor-step-icon">✊</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">Close fist → click</div>
+                <div class="cursor-step-desc">Hold palm open for a moment, then close your fist to fire a click at the cursor position</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cursor-card">
+          <div class="cursor-card-title">All cursor mode gestures</div>
+          <div class="cursor-steps">
+            <div class="cursor-step">
+              <div class="cursor-step-icon">🖐</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">Open palm → move cursor</div>
+                <div class="cursor-step-desc">Keep palm open and move your wrist within the Cursor Zone</div>
+              </div>
+            </div>
+            <div class="cursor-step">
+              <div class="cursor-step-icon">✊</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">Fist → left click</div>
+                <div class="cursor-step-desc">Hold palm open ≥ 0.2 s, then close fist — click fires at the dot</div>
+              </div>
+            </div>
+            <div class="cursor-step">
+              <div class="cursor-step-icon">☝</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">Pointing + swipe → scroll / action</div>
+                <div class="cursor-step-desc">Swipe with finger pointed — maps to your ☝ Pointing settings below (e.g. swipe down → Scroll down)</div>
+              </div>
+            </div>
+            <div class="cursor-step">
+              <div class="cursor-step-icon">✌</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">Victory + swipe → navigate / action</div>
+                <div class="cursor-step-desc">Swipe with peace sign — maps to your ✌ Victory settings below (e.g. swipe left → Go back)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cursor-card">
+          <div class="cursor-card-title">Recommended cursor-mode setup</div>
+          <div class="cursor-steps">
+            <div class="cursor-step">
+              <div class="cursor-step-icon">💡</div>
+              <div class="cursor-step-body">
+                <div class="cursor-step-label">In Settings, configure ☝ Pointing and ✌ Victory swipes</div>
+                <div class="cursor-step-desc">
+                  Try: ☝ swipe up → Scroll up, ☝ swipe down → Scroll down,
+                  ✌ swipe left → Go back, ✌ swipe right → Go forward.
+                  These gestures fire in both normal and cursor mode.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CURSOR SETTINGS -->
+      <section id="cursor-settings">
+        <div class="section-eyebrow">Configure</div>
+        <h2 class="section-heading reveal" data-reveal-i="0">Settings</h2>
+        <p class="section-sub">Adjust cursor mode timings and options. Gesture mappings are configured in Settings.</p>
+
+        <!-- Timings -->
+        <div class="cursor-card" style="margin-top:32px;">
+          <div class="cursor-card-title">Timings</div>
+          <div class="cursor-timing-row">
+            <div>
+              <div class="cursor-toggle-label">👍 Thumb hold to toggle cursor mode</div>
+              <div class="cursor-toggle-desc">How long to hold thumb up before cursor mode switches on or off</div>
+            </div>
+            <div class="cursor-timing-control">
+              <input type="range" id="thumbHoldMs" min="200" max="1000" step="50" value="400">
+              <span class="cursor-timing-value" id="thumbHoldLabel">0.4 s</span>
+            </div>
+          </div>
+          <div class="cursor-timing-row" style="border-top:1px solid #1a1a1a;">
+            <div>
+              <div class="cursor-toggle-label">✊ Palm open hold before fist click</div>
+              <div class="cursor-toggle-desc">How long your palm must be open before closing into a fist fires a click</div>
+            </div>
+            <div class="cursor-timing-control">
+              <input type="range" id="clickDwellMs" min="100" max="500" step="50" value="200">
+              <span class="cursor-timing-value" id="clickDwellLabel">0.2 s</span>
+            </div>
+          </div>
+        </div>
+
+<div class="save-row" style="margin-top:24px;">
+          <button class="save-btn" id="cursorSaveBtn">Save</button>
+          <span class="saved-msg" id="cursorSavedMsg"></span>
+        </div>
+      </section>
+
+      </div><!-- /panel cursor -->
+
+      <div class="panel" data-panel="scroll">
+
+      <!-- SETTINGS -->
+      <section id="settings">
+        <div class="section-eyebrow">Customize</div>
+        <h2 class="section-heading reveal" data-reveal-i="0">Settings</h2>
+        <p class="section-sub">Map all 16 gesture swipes to actions. Open Palm is expanded by default.</p>
+
+        <div class="settings-card accord-wrap" style="padding:0;margin-top:32px;">
+
+          <!-- Open Palm -->
+          <div class="accord-group reveal" data-reveal-i="0">
+            <button class="accord-header accord-open" data-accord="open">
+              <div class="accord-left"><span class="accord-icon">🖐</span><span class="accord-name">Open Palm</span></div>
+              <span class="accord-sum" id="sum-open"></span>
+              <span class="accord-chev">›</span>
+            </button>
+            <div class="accord-body accord-open" id="body-open">
+              <div class="accord-body-inner">
+                <div class="gesture-row-card" data-dir="up">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,11 8,5 12,11"/></svg></div>
+                  <span class="gesture-name">Open Palm ↑</span>
+                  <select id="open_swipe_up"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="down">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,5 8,11 12,5"/></svg></div>
+                  <span class="gesture-name">Open Palm ↓</span>
+                  <select id="open_swipe_down"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="left">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11,4 5,8 11,12"/></svg></div>
+                  <span class="gesture-name">Open Palm ←</span>
+                  <select id="open_swipe_left"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="right">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,4 11,8 5,12"/></svg></div>
+                  <span class="gesture-name">Open Palm →</span>
+                  <select id="open_swipe_right"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Closed Fist -->
+          <div class="accord-group reveal" data-reveal-i="1">
+            <button class="accord-header" data-accord="closed">
+              <div class="accord-left"><span class="accord-icon">✊</span><span class="accord-name">Closed Fist</span></div>
+              <span class="accord-sum" id="sum-closed"></span>
+              <span class="accord-chev">›</span>
+            </button>
+            <div class="accord-body" id="body-closed">
+              <div class="accord-body-inner">
+                <div class="gesture-row-card" data-dir="up">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,11 8,5 12,11"/></svg></div>
+                  <span class="gesture-name">Closed Fist ↑</span>
+                  <select id="closed_swipe_up"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="down">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,5 8,11 12,5"/></svg></div>
+                  <span class="gesture-name">Closed Fist ↓</span>
+                  <select id="closed_swipe_down"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="left">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11,4 5,8 11,12"/></svg></div>
+                  <span class="gesture-name">Closed Fist ←</span>
+                  <select id="closed_swipe_left"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="right">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,4 11,8 5,12"/></svg></div>
+                  <span class="gesture-name">Closed Fist →</span>
+                  <select id="closed_swipe_right"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pointing Up -->
+          <div class="accord-group reveal" data-reveal-i="2">
+            <button class="accord-header" data-accord="pointing">
+              <div class="accord-left"><span class="accord-icon">☝</span><span class="accord-name">Pointing Up</span></div>
+              <span class="accord-sum" id="sum-pointing"></span>
+              <span class="accord-chev">›</span>
+            </button>
+            <div class="accord-body" id="body-pointing">
+              <div class="accord-body-inner">
+                <div class="gesture-row-card" data-dir="up">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,11 8,5 12,11"/></svg></div>
+                  <span class="gesture-name">Pointing ↑</span>
+                  <select id="pointing_swipe_up"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="down">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,5 8,11 12,5"/></svg></div>
+                  <span class="gesture-name">Pointing ↓</span>
+                  <select id="pointing_swipe_down"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="left">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11,4 5,8 11,12"/></svg></div>
+                  <span class="gesture-name">Pointing ←</span>
+                  <select id="pointing_swipe_left"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="right">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,4 11,8 5,12"/></svg></div>
+                  <span class="gesture-name">Pointing →</span>
+                  <select id="pointing_swipe_right"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Victory -->
+          <div class="accord-group reveal" data-reveal-i="3">
+            <button class="accord-header" data-accord="victory">
+              <div class="accord-left"><span class="accord-icon">✌</span><span class="accord-name">Victory</span></div>
+              <span class="accord-sum" id="sum-victory"></span>
+              <span class="accord-chev">›</span>
+            </button>
+            <div class="accord-body" id="body-victory">
+              <div class="accord-body-inner">
+                <div class="gesture-row-card" data-dir="up">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,11 8,5 12,11"/></svg></div>
+                  <span class="gesture-name">Victory ↑</span>
+                  <select id="victory_swipe_up"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="down">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,5 8,11 12,5"/></svg></div>
+                  <span class="gesture-name">Victory ↓</span>
+                  <select id="victory_swipe_down"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="left">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11,4 5,8 11,12"/></svg></div>
+                  <span class="gesture-name">Victory ←</span>
+                  <select id="victory_swipe_left"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+                <div class="gesture-row-card" data-dir="right">
+                  <div class="gesture-dir-icon"><svg class="gesture-dir-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,4 11,8 5,12"/></svg></div>
+                  <span class="gesture-name">Victory →</span>
+                  <select id="victory_swipe_right"><option value="SCROLL_UP">Scroll up</option><option value="SCROLL_DOWN">Scroll down</option><option value="GO_BACK">Go back</option><option value="GO_FORWARD">Go forward</option><option value="SCROLL_TOP">Scroll to top</option><option value="SCROLL_BOTTOM">Scroll to bottom</option><option value="NEW_TAB">New tab</option><option value="CLOSE_TAB">Close tab</option><option value="NONE">Do nothing</option></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /accord-wrap -->
+
+        <div class="save-row">
+          <button class="save-btn" id="saveBtn">Save</button>
+          <span class="saved-msg" id="savedMsg"></span>
+          <button class="preset-trigger-btn" id="presetTriggerBtn">Load preset</button>
+          <button class="export-btn" id="exportConfigBtn">⬆ Export</button>
+          <button class="export-btn" id="importConfigBtn">⬇ Import</button>
+        </div>
+        <div class="import-row" id="importRow" style="display:none;">
+          <input type="text" class="import-input" id="importConfigInput" placeholder="Paste config code…" spellcheck="false">
+          <button class="import-apply-btn" id="importApplyBtn">Apply</button>
+          <button class="import-cancel-btn" id="importCancelBtn">✕</button>
+          <span class="import-err" id="importErr"></span>
+        </div>
+      </section>
+
+      </div><!-- /panel scroll part 2 -->
+
+    </main>
+  </div>
+
+  <!-- PRESET PANEL -->
+  <div class="preset-backdrop" id="presetBackdrop"></div>
+  <div class="preset-panel" id="presetPanel">
+    <div class="preset-drag-handle"></div>
+    <h3 class="preset-panel-title">Load a preset</h3>
+    <p class="preset-panel-sub">One click to configure all 16 gesture mappings at once.</p>
+    <div class="preset-cards" id="presetCards"></div>
+    <div class="preset-footer">
+      <button class="preset-apply-btn" id="presetApplyBtn" disabled>Apply preset</button>
+      <button class="preset-cancel-btn" id="presetCancelBtn">Cancel</button>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <span>Made with <span class="footer-heart">♥</span> by Wavr</span>
+    <span class="footer-sep">·</span>
+    <span class="footer-version">v1.0.0</span>
+  </footer>
+
+  <script type="module" src="./popup.js"></script>
+  <script type="module" src="./preview-detect.js"></script>
+  <script type="module" src="./nav.js"></script>
+
+  <!-- ── Polish: ambient glow + scroll-reveal ─────────────────────────── -->
+  <script type="module">
+    // ── Ambient cursor glow (lerp follow, GPU-only transform) ─────────
+    const glow   = document.getElementById('ambientGlow');
+    const HALF   = 360;   // half of 720px glow diameter
+    const LERP   = 0.072; // trailing softness — lower = more lag
+
+    if (glow) {
+      let gx = -9999, gy = -9999, tx = gx, ty = gy, rafId = null;
+
+      const lerp = (a, b, t) => a + (b - a) * t;
+
+      function tickGlow() {
+        gx = lerp(gx, tx, LERP);
+        gy = lerp(gy, ty, LERP);
+        glow.style.transform = `translate(${(gx - HALF).toFixed(1)}px,${(gy - HALF).toFixed(1)}px)`;
+        const done = Math.abs(tx - gx) < 0.4 && Math.abs(ty - gy) < 0.4;
+        rafId = done ? null : requestAnimationFrame(tickGlow);
+      }
+
+      document.addEventListener('mousemove', e => {
+        tx = e.clientX;
+        ty = e.clientY;
+        if (!rafId) {
+          if (gx === -9999) { gx = tx; gy = ty; }   // snap to cursor on first move
+          rafId = requestAnimationFrame(tickGlow);
+        }
+        if (glow.style.opacity !== '1') glow.style.opacity = '1';
+      }, { passive: true });
+
+      document.addEventListener('mouseleave', () => { glow.style.opacity = '0'; });
+    }
+
+    // ── Scroll-driven reveal (IntersectionObserver) ───────────────────
+    const revealObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('in-view');
+        revealObs.unobserve(entry.target);
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -48px 0px' });
+
+    // Section eyebrow + sub (heading handled by scrollReveal.js .reveal system)
+    document.querySelectorAll('#gesture-explorer, #setup, #tutorial, #settings, #cursor, #cursor-settings').forEach(sec => {
+      sec.querySelectorAll('.section-eyebrow, .section-sub').forEach((el, i) => {
+        el.classList.add('scroll-reveal');
+        el.style.transitionDelay = `${i * 65}ms`;
+        revealObs.observe(el);
+      });
+    });
+
+    // Video cards — staggered
+    document.querySelectorAll('.video-card').forEach((el, i) => {
+      el.classList.add('scroll-reveal');
+      el.style.transitionDelay = `${i * 110}ms`;
+      revealObs.observe(el);
+    });
+
+    // Cursor cards
+    document.querySelectorAll('.cursor-card').forEach((el, i) => {
+      el.classList.add('scroll-reveal');
+      el.style.transitionDelay = `${i * 65}ms`;
+      revealObs.observe(el);
+    });
+
+    // Save / action rows in sections
+    document.querySelectorAll('#settings .save-row, #cursor-settings .save-row').forEach(el => {
+      el.classList.add('scroll-reveal');
+      revealObs.observe(el);
+    });
+  </script>
+
+  <script type="module">
+    // ── Hero 3D Tilt + Glare (rAF lerp, 9deg max on wrap) ─────────────
+    const wrap    = document.querySelector('.hero-showcase-wrap');
+    const showcase = document.getElementById('heroShowcase');
+    const glare   = document.getElementById('heroGlare');
+
+    if (wrap && showcase && glare) {
+      let curX = 0, curY = 0, tgtX = 0, tgtY = 0;
+      let hovered = false, rafId = null;
+      const lerp = (a, b, t) => a + (b - a) * t;
+
+      function tick() {
+        curX = lerp(curX, tgtX, 0.1);
+        curY = lerp(curY, tgtY, 0.1);
+        showcase.style.transform = `rotateX(${curX.toFixed(3)}deg) rotateY(${curY.toFixed(3)}deg)`;
+        if (!hovered && Math.abs(curX) < 0.02 && Math.abs(curY) < 0.02) {
+          showcase.style.transform = 'rotateX(0deg) rotateY(0deg)';
+          rafId = null;
+          return;
+        }
+        rafId = requestAnimationFrame(tick);
+      }
+
+      wrap.addEventListener('mousemove', e => {
+        const r = wrap.getBoundingClientRect();
+        const nx = (e.clientX - r.left) / r.width  - 0.5;
+        const ny = (e.clientY - r.top)  / r.height - 0.5;
+        tgtX = -ny * 9;
+        tgtY =  nx * 9;
+        hovered = true;
+        const gx = ((nx + 0.5) * 100).toFixed(1);
+        const gy = ((ny + 0.5) * 100).toFixed(1);
+        glare.style.background = `radial-gradient(circle at ${gx}% ${gy}%, rgba(255,255,255,0.07) 0%, transparent 60%)`;
+        if (!rafId) rafId = requestAnimationFrame(tick);
+      }, { passive: true });
+
+      wrap.addEventListener('mouseleave', () => {
+        hovered = false;
+        tgtX = 0; tgtY = 0;
+        glare.style.background = '';
+        if (!rafId) rafId = requestAnimationFrame(tick);
+      });
+    }
+  </script>
+
+  <script>
+    // ── Scroll progress bar ───────────────────────────────────────────
+    const _sp = document.getElementById('scrollProgress');
+    if (_sp) {
+      window.addEventListener('scroll', function () {
+        var pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
+        _sp.style.width = Math.min(pct, 100) + '%';
+      }, { passive: true });
+    }
+
+    // ── Section nav sidebar ───────────────────────────────────────────
+    (function () {
+      var nav = document.getElementById('sectionNav');
+      if (!nav) return;
+      var dots = Array.from(nav.querySelectorAll('.snav-dot'));
+
+      dots.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var el = document.getElementById(btn.dataset.target);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      var sectionObs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          dots.forEach(function (d) {
+            d.classList.toggle('active', d.dataset.target === e.target.id);
+          });
+        });
+      }, { threshold: 0.15, rootMargin: '-5% 0px -50% 0px' });
+
+      ['hero','intro','gesture-explorer','setup','tutorial','settings','cursor-settings'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) sectionObs.observe(el);
+      });
+
+      function updateNavForTab() {
+        var onCursor = document.querySelector('.panel[data-panel="cursor"]') &&
+          !document.querySelector('.panel[data-panel="cursor"]').classList.contains('panel--hidden');
+        nav.querySelectorAll('.snav-scroll-only').forEach(function (el) {
+          el.style.display = onCursor ? 'none' : '';
+        });
+        nav.querySelectorAll('.snav-cursor-only').forEach(function (el) {
+          el.style.display = onCursor ? '' : 'none';
+        });
+      }
+
+      document.querySelectorAll('.tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', updateNavForTab);
+      });
+      updateNavForTab();
+    })();
+  </script>
+</body>
+</html>

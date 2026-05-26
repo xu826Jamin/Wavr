@@ -1,0 +1,19 @@
+{
+  "name": "gesture-scroll",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.0",
+    "lucide": "^1.16.0",
+    "motion": "^12.38.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5",
+    "vite": "^5.0.0",
+    "vite-plugin-web-extension": "^4.0.0"
+  }
+}
