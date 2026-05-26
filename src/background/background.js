@@ -159,6 +159,22 @@ chrome.action.onClicked.addListener(async () => {
   }
 });
 
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== 'toggle-wavr') return;
+  const { firstRunDone } = await chrome.storage.local.get('firstRunDone');
+  if (!firstRunDone) return;
+  const exists = await chrome.offscreen.hasDocument();
+  if (exists) {
+    await closeOffscreen();
+    broadcastToTabs({ type: 'HIDE_OVERLAY' });
+    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
+  } else {
+    await createOffscreen();
+    broadcastToTabs({ type: 'START_OVERLAY' });
+    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: true }).catch(() => {});
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TOGGLE') {
     chrome.offscreen.hasDocument().then(async (exists) => {
