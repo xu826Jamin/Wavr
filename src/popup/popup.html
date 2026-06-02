@@ -287,6 +287,27 @@
       transition: border-color 0.2s;
     }
     .step-card:hover { border-color: #2a2a2a; }
+    .setup-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 20px;
+      padding: 16px 18px;
+      background: var(--accent-dim, rgba(74,222,128,0.06));
+      border: 1px solid rgba(74,222,128,0.22);
+      border-radius: 12px;
+    }
+    .setup-note .note-icon {
+      flex: none;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+    .setup-note .note-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #b8b8b8;
+    }
+    .setup-note .note-text strong { color: var(--accent, #4ade80); font-weight: 600; }
     .step-num {
       width: 28px; height: 28px;
       background: #1e1e1e;
@@ -2698,6 +2719,11 @@
             <div class="step-title">Allow Camera</div>
             <div class="step-desc">Under <strong>Camera</strong>, select <strong>Allow</strong>. Then click the toolbar icon to activate.</div>
           </div>
+        </div>
+
+        <div class="setup-note reveal" data-reveal-i="3">
+          <span class="note-icon">👆</span>
+          <span class="note-text">To start Wavr on a supported page, <strong>click the Wavr icon in your browser toolbar</strong> to turn it on. It stays off on restricted pages like <code>chrome://</code>, the Chrome Web Store, and PDFs.</span>
         </div>
       </section>
 
