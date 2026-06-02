@@ -27,8 +27,8 @@ let cursorMirrorX     = false;
 let gestureMap = {
   open_swipe_up: 'SCROLL_UP', open_swipe_down: 'SCROLL_DOWN',
   open_swipe_left: 'GO_BACK', open_swipe_right: 'GO_FORWARD',
-  closed_swipe_up: 'SCROLL_TOP', closed_swipe_down: 'SCROLL_BOTTOM',
-  closed_swipe_left: 'CLOSE_TAB', closed_swipe_right: 'NEW_TAB',
+  closed_swipe_up: 'SCROLL_UP_PAGE', closed_swipe_down: 'SCROLL_DOWN_PAGE',
+  closed_swipe_left: 'NONE', closed_swipe_right: 'NONE', // B3: scroll-first, non-destructive defaults
   pointing_swipe_up: 'NONE', pointing_swipe_down: 'NONE',
   pointing_swipe_left: 'NONE', pointing_swipe_right: 'NONE',
   victory_swipe_up: 'NONE', victory_swipe_down: 'NONE',

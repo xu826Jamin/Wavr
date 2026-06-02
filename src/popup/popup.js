@@ -13,8 +13,8 @@ const GESTURE_KEYS = [
 const defaults = {
   open_swipe_up:    'SCROLL_UP',  open_swipe_down:  'SCROLL_DOWN',
   open_swipe_left:  'GO_BACK',    open_swipe_right: 'GO_FORWARD',
-  closed_swipe_up:  'SCROLL_TOP', closed_swipe_down: 'SCROLL_BOTTOM',
-  closed_swipe_left:'CLOSE_TAB',  closed_swipe_right:'NEW_TAB',
+  closed_swipe_up:  'SCROLL_UP_PAGE', closed_swipe_down: 'SCROLL_DOWN_PAGE',
+  closed_swipe_left:'NONE',  closed_swipe_right:'NONE', // B3: scroll-first, non-destructive defaults
   pointing_swipe_up:'NONE', pointing_swipe_down:'NONE',
   pointing_swipe_left:'NONE', pointing_swipe_right:'NONE',
   victory_swipe_up: 'NONE', victory_swipe_down: 'NONE',
@@ -360,6 +360,15 @@ function setStatus(enabled) {
   statusLabel.textContent = enabled ? 'ON' : 'OFF';
 }
 
+// Idempotently turn the live controller ON (B5). Used by the onboarding wizard so
+// finishing onboarding actually starts Wavr instead of leaving it off.
+function ensureEnabled() {
+  chrome.runtime.sendMessage({ type: 'ENABLE' }, (resp) => {
+    if (chrome.runtime.lastError) return;
+    setStatus(resp?.enabled ?? true);
+  });
+}
+
 chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (resp) => {
   setStatus(resp?.enabled ?? false);
 });
@@ -498,6 +507,9 @@ function frFinish() {
   frOverlay.style.opacity = '0';
   setTimeout(() => { frOverlay.style.display = 'none'; }, 400);
   chrome.storage.local.set({ onboardingComplete: true });
+  // B5 backstop: if the camera was granted, make sure the live controller is on
+  // when onboarding closes (skip-camera users have no previewStream → stay off).
+  if (previewStream) ensureEnabled();
 }
 
 // Focus trap: keep keyboard focus inside the wizard while it's open
@@ -523,6 +535,9 @@ document.getElementById('frAllowCamera').addEventListener('click', async () => {
   const frVid = document.getElementById('frVideo');
   if (previewStream) {
     if (frVid) frVid.srcObject = previewStream;
+    // B2/B5: granting the camera is the first real interaction — turn Wavr ON now
+    // so the live feed appears on the page, not just in this wizard's preview.
+    ensureEnabled();
     frGoToStep(3);
     frWatchGesture();
   } else {

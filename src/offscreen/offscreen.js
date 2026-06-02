@@ -1,4 +1,5 @@
 import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
+import { GESTURES, POSE_PREFIX, detectSwipe, dominantPose } from './detect.js';
 
 const DEV_MODE = typeof chrome !== 'undefined' &&
   chrome.runtime?.getManifest?.()?.version?.includes('dev');
@@ -7,7 +8,6 @@ function debug(...args) {
   if (DEV_MODE) console.log('[wavr/offscreen]', ...args);
 }
 
-const GESTURES = { SWIPE_UP: 'SWIPE_UP', SWIPE_DOWN: 'SWIPE_DOWN', SWIPE_LEFT: 'SWIPE_LEFT', SWIPE_RIGHT: 'SWIPE_RIGHT', NONE: 'NONE' };
 const ACTION_LABELS = {
   SCROLL_UP: 'Scroll up', SCROLL_DOWN: 'Scroll down',
   GO_BACK: 'Go back', GO_FORWARD: 'Go forward',
@@ -16,14 +16,24 @@ const ACTION_LABELS = {
   NEW_TAB: 'New tab', CLOSE_TAB: 'Close tab',
   NONE: 'Do nothing',
 };
-const settings = { cooldownMs: 600, velocityThreshold: 0.12, bufferSize: 8 };
+const settings = {
+  cooldownMs: 600,
+  velocityThreshold: 0.12,
+  bufferSize: 8,
+  directness: 0.7, // min |net displacement| / |path travelled| on the dominant axis (A4)
+  axisPurity: 0.7, // max off-axis travel as a fraction of dominant-axis travel (A4)
+  poseAgree: 0.6,  // fraction of the buffer that must share one confident pose to fire (A4)
+};
+
+// POSE_PREFIX is imported from detect.js. Emoji are display-only, used here.
+const POSE_EMOJI = { Open_Palm: '🖐', Closed_Fist: '✊', Pointing_Up: '☝', Victory: '✌' };
 
 let deadZoneRadius = 0.10;
 let gestureMap = {
   open_swipe_up: 'SCROLL_UP', open_swipe_down: 'SCROLL_DOWN',
   open_swipe_left: 'GO_BACK', open_swipe_right: 'GO_FORWARD',
-  closed_swipe_up: 'SCROLL_TOP', closed_swipe_down: 'SCROLL_BOTTOM',
-  closed_swipe_left: 'CLOSE_TAB', closed_swipe_right: 'NEW_TAB',
+  closed_swipe_up: 'SCROLL_UP_PAGE', closed_swipe_down: 'SCROLL_DOWN_PAGE',
+  closed_swipe_left: 'NONE', closed_swipe_right: 'NONE', // B3: demote destructive defaults until A4 is hardware-validated
   pointing_swipe_up: 'NONE', pointing_swipe_down: 'NONE',
   pointing_swipe_left: 'NONE', pointing_swipe_right: 'NONE',
   victory_swipe_up: 'NONE', victory_swipe_down: 'NONE',
@@ -33,6 +43,24 @@ let gestureMap = {
 let gestureRecognizer = null;
 let lastGestureTime = 0;
 let lastStateTime = 0;
+
+// ── Idle auto-pause (A1) ───────────────────────────────────────────────────────
+// recognizeForVideo is expensive; running it every 33ms with no hand present is
+// pure battery/heat drain. After IDLE_AFTER_MS with no landmarks we throttle the
+// inference loop to IDLE_FRAME_MS and stop relaying VIDEO_FRAME (the overlay just
+// freezes on its last frame — harmless, no hand to track). Full rate resumes the
+// instant a hand reappears.
+const ACTIVE_FRAME_MS = 33;
+const IDLE_FRAME_MS    = 300;
+const IDLE_AFTER_MS    = 4000;
+let lastHandSeen = 0;
+let idle         = false;
+let frameTimer   = null;
+
+function setFrameRate(ms) {
+  if (frameTimer) clearInterval(frameTimer);
+  frameTimer = setInterval(processFrame, ms);
+}
 const positionBuffer = [];
 let gestureOrigin = null;
 let waitingForReset = false;
@@ -103,7 +131,8 @@ async function init() {
       if (response?.cursorTimings?.thumbHoldMs  != null) THUMB_UP_HOLD_MS = response.cursorTimings.thumbHoldMs;
       if (response?.cursorTimings?.clickDwellMs != null) CLICK_DWELL_MS   = response.cursorTimings.clickDwellMs;
     });
-    setInterval(processFrame, 33);
+    lastHandSeen = Date.now(); // grace period before first idle transition
+    setFrameRate(ACTIVE_FRAME_MS);
 
     // Relay camera frames to PiP overlay (content scripts can't open a second stream on most cameras)
     const frameCanvas = document.createElement('canvas');
@@ -111,7 +140,7 @@ async function init() {
     frameCanvas.height = 240;
     const frameCtx = frameCanvas.getContext('2d', { willReadFrequently: true });
     setInterval(() => {
-      if (video.readyState < 2) return;
+      if (idle || video.readyState < 2) return; // A1: stop relay while idle
       frameCtx.drawImage(video, 0, 0, 320, 240);
       chrome.runtime.sendMessage({
         type: 'VIDEO_FRAME',
@@ -126,28 +155,6 @@ async function init() {
       : 'Camera unavailable. Check that no other app is using it.';
     chrome.runtime.sendMessage({ type: 'CAMERA_ERROR', message: msg }).catch(() => {});
   }
-}
-
-// Video is 640×480 (4:3). MediaPipe normalised coords: x spans width, y spans height.
-// Scale dx by W/H so both axes measure equal physical distance per unit.
-const VIDEO_ASPECT = 640 / 480; // ≈ 1.333
-
-function detectSwipe() {
-  if (positionBuffer.length < settings.bufferSize) return GESTURES.NONE;
-  const oldest = positionBuffer[0];
-  const newest = positionBuffer[positionBuffer.length - 1];
-  const dx  = newest.x - oldest.x;
-  const dy  = newest.y - oldest.y;
-  const dxA = dx * VIDEO_ASPECT; // height-equivalent normalised units
-  const t   = settings.velocityThreshold;
-  if (Math.abs(dy) > Math.abs(dxA)) {
-    if (dy < -t) return GESTURES.SWIPE_UP;
-    if (dy > t) return GESTURES.SWIPE_DOWN;
-  } else {
-    if (dxA < -t) return GESTURES.SWIPE_LEFT;
-    if (dxA > t)  return GESTURES.SWIPE_RIGHT;
-  }
-  return GESTURES.NONE;
 }
 
 function mapCursorPosition(wrist) {
@@ -166,26 +173,36 @@ function mapCursorPosition(wrist) {
 
 function processFrame() {
   if (!gestureRecognizer || video.readyState < 2) return;
-  const results = gestureRecognizer.recognizeForVideo(video, Date.now());
+  const now     = Date.now();
+  const results = gestureRecognizer.recognizeForVideo(video, now);
 
   if (!results.landmarks?.length) {
     positionBuffer.length = 0;
     waitingForReset = false;
     thumbUpStart   = 0;
     thumbUpToggled = false;
+    // A1: throttle inference + relay once the hand has been gone long enough.
+    if (!idle && now - lastHandSeen > IDLE_AFTER_MS) {
+      idle = true;
+      setFrameRate(IDLE_FRAME_MS);
+    }
     return;
+  }
+
+  // Hand present — resume full rate immediately if we were idling.
+  lastHandSeen = now;
+  if (idle) {
+    idle = false;
+    setFrameRate(ACTIVE_FRAME_MS);
   }
 
   // Only the dominant (first) hand is processed; a second hand is intentionally ignored.
   const wrist     = results.landmarks[0][0];
-  const now       = Date.now();
   const topGesture = results.gestures?.[0]?.[0];
   const pose      = (topGesture?.score ?? 0) >= 0.75 ? topGesture.categoryName : 'None';
 
-  const isOpen     = pose === 'Open_Palm' || pose === 'None';
+  const isOpen     = pose === 'Open_Palm'; // A4: ambiguous 'None' is no longer treated as open
   const isClosed   = pose === 'Closed_Fist';
-  const isPointing = pose === 'Pointing_Up';
-  const isVictory  = pose === 'Victory';
   const isThumbUp  = pose === 'Thumb_Up';
 
   // ── Thumb Up hold → toggle cursor mode ───────────────────────────────────────
@@ -250,28 +267,28 @@ function processFrame() {
       }
     }
 
-    positionBuffer.push({ x: wrist.x, y: wrist.y });
+    positionBuffer.push({ x: wrist.x, y: wrist.y, pose });
     if (positionBuffer.length > settings.bufferSize) positionBuffer.shift();
 
     // Pointing and victory swipes dispatch their configured actions while in cursor mode
-    if (isPointing || isVictory) {
-      const gesture = detectSwipe();
-      if (gesture !== GESTURES.NONE && now - lastGestureTime > settings.cooldownMs) {
+    const gesture = detectSwipe(positionBuffer, settings);
+    if (gesture !== GESTURES.NONE && now - lastGestureTime > settings.cooldownMs) {
+      const firePose = dominantPose(positionBuffer, settings);
+      if (firePose === 'Pointing_Up' || firePose === 'Victory') {
         lastGestureTime = now;
         gestureOrigin   = deadZoneAnchor ?? { x: positionBuffer[0]?.x ?? wrist.x, y: positionBuffer[0]?.y ?? wrist.y };
         waitingForReset = true;
         positionBuffer.length = 0;
 
-        const prefix    = isPointing ? 'pointing_' : 'victory_';
+        const prefix    = POSE_PREFIX[firePose];
         const action    = gestureMap[prefix + gesture.toLowerCase()] || 'NONE';
-        const poseEmoji = isPointing ? '☝' : '✌';
 
         if (action !== 'NONE') {
           const score = topGesture?.score ?? 0;
           chrome.runtime.sendMessage({ type: 'GESTURE_DETECTED', gesture, action });
           chrome.runtime.sendMessage({
             type: 'GESTURE_DISPLAY',
-            label: `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
+            label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
           });
         }
       }
@@ -308,27 +325,27 @@ function processFrame() {
     }
   }
 
-  positionBuffer.push({ x: wrist.x, y: wrist.y });
+  positionBuffer.push({ x: wrist.x, y: wrist.y, pose });
   if (positionBuffer.length > settings.bufferSize) positionBuffer.shift();
 
-  if (isOpen || isClosed || isPointing || isVictory) {
-    const gesture = detectSwipe();
-    if (gesture !== GESTURES.NONE && now - lastGestureTime > settings.cooldownMs) {
+  const gesture = detectSwipe(positionBuffer, settings);
+  if (gesture !== GESTURES.NONE && now - lastGestureTime > settings.cooldownMs) {
+    // A4: a swipe only fires under a confident, stable pose held across the window.
+    const firePose = dominantPose(positionBuffer, settings);
+    if (firePose) {
       lastGestureTime = now;
       gestureOrigin   = deadZoneAnchor ?? { x: positionBuffer[0].x, y: positionBuffer[0].y };
       waitingForReset = true;
       positionBuffer.length = 0;
 
-      const prefix    = isClosed ? 'closed_' : isPointing ? 'pointing_' : isVictory ? 'victory_' : 'open_';
-      const mapKey    = prefix + gesture.toLowerCase();
-      const action    = gestureMap[mapKey] || 'NONE';
-      const poseEmoji = isClosed ? '✊' : isPointing ? '☝' : isVictory ? '✌' : '🖐';
+      const mapKey = POSE_PREFIX[firePose] + gesture.toLowerCase();
+      const action = gestureMap[mapKey] || 'NONE';
 
       const score = topGesture?.score ?? 0;
       chrome.runtime.sendMessage({ type: 'GESTURE_DETECTED', gesture, action });
       chrome.runtime.sendMessage({
         type: 'GESTURE_DISPLAY',
-        label: `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
+        label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
       });
       debug('gesture', gesture, '->', action);
     }

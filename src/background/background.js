@@ -12,10 +12,10 @@ function migrateGestureMap(map) {
       open_swipe_down:  m.swipe_down  || 'SCROLL_DOWN',
       open_swipe_left:  m.swipe_left  || 'GO_BACK',
       open_swipe_right: m.swipe_right || 'GO_FORWARD',
-      closed_swipe_up:    'SCROLL_TOP',
-      closed_swipe_down:  'SCROLL_BOTTOM',
-      closed_swipe_left:  'CLOSE_TAB',
-      closed_swipe_right: 'NEW_TAB',
+      closed_swipe_up:    'SCROLL_UP_PAGE',
+      closed_swipe_down:  'SCROLL_DOWN_PAGE',
+      closed_swipe_left:  'NONE', // B3: scroll-first, non-destructive defaults
+      closed_swipe_right: 'NONE',
     };
     changed = true;
   }
@@ -38,6 +38,8 @@ function migrateGestureMap(map) {
 }
 
 async function createOffscreen() {
+  // Persist intent first so a crash mid-creation still resumes on next startup.
+  await chrome.storage.local.set({ wavrEnabled: true });
   const exists = await chrome.offscreen.hasDocument();
   if (!exists) {
     await chrome.offscreen.createDocument({
@@ -50,8 +52,33 @@ async function createOffscreen() {
 }
 
 async function closeOffscreen() {
+  await chrome.storage.local.set({ wavrEnabled: false });
+  chrome.alarms.clear('keepAlive');
   const exists = await chrome.offscreen.hasDocument();
   if (exists) await chrome.offscreen.closeDocument();
+}
+
+async function enableWavr() {
+  await createOffscreen();
+  showOverlayOnActiveTab();
+  chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: true }).catch(() => {});
+}
+
+async function disableWavr() {
+  await closeOffscreen();
+  overlayTabId = null;
+  broadcastToTabs({ type: 'HIDE_OVERLAY' });
+  chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
+}
+
+// Re-arm the live controller after a service-worker restart / browser launch
+// if the user had Wavr enabled. Foundation for the habit loop (B1) — without
+// this, Wavr is OFF after every restart because "enabled" was only ever derived
+// live from chrome.offscreen.hasDocument(), which is false on a cold start.
+async function resumeIfEnabled() {
+  const { wavrEnabled } = await chrome.storage.local.get('wavrEnabled');
+  if (!wavrEnabled) return;
+  await enableWavr();
 }
 
 function isRestrictedUrl(url) {
@@ -80,24 +107,67 @@ async function updatePageRestrictedBadge(tabId) {
   } catch { /* tab may have closed */ }
 }
 
-chrome.tabs.onActivated.addListener(({ tabId }) => updatePageRestrictedBadge(tabId));
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  updatePageRestrictedBadge(tabId);
+  moveOverlayIfEnabled(); // A2: follow the user's active tab
+});
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
   if (change.url && tab.active) updatePageRestrictedBadge(tabId);
 });
+chrome.windows.onFocusChanged.addListener((winId) => {
+  if (winId === chrome.windows.WINDOW_ID_NONE) return;
+  moveOverlayIfEnabled(); // A2: follow the user across windows
+});
+
+function isInjectableTab(tab) {
+  return !!tab?.url &&
+    !tab.url.startsWith('chrome://') &&
+    !tab.url.startsWith('chrome-extension://') &&
+    tab.url !== 'about:blank';
+}
 
 function broadcastToTabs(message) {
   chrome.tabs.query({}, (tabs) => {
     for (const tab of tabs) {
-      if (
-        tab.url &&
-        !tab.url.startsWith('chrome://') &&
-        !tab.url.startsWith('chrome-extension://') &&
-        tab.url !== 'about:blank'
-      ) {
+      if (isInjectableTab(tab)) {
         chrome.tabs.sendMessage(tab.id, message).catch(() => {});
       }
     }
   });
+}
+
+// ── Active-tab routing (A2) ─────────────────────────────────────────────────────
+// The PiP widget + camera feed should live in exactly one tab: the one the user is
+// looking at. Broadcasting VIDEO_FRAME (10×/s JPEG) and START_OVERLAY to every tab
+// made every open tab decode frames and build a widget — large idle CPU drain.
+// We track the single tab that currently owns the overlay and route per-frame
+// traffic only there, moving it as the user switches tabs/windows.
+let overlayTabId = null;
+
+// Route a per-frame / per-state message to the overlay-owning tab only.
+function routeToOverlayTab(message) {
+  if (overlayTabId != null) {
+    chrome.tabs.sendMessage(overlayTabId, message).catch(() => {});
+  }
+}
+
+// Build/show the widget on the active tab of the focused window, hiding it on the
+// tab that previously owned it. Self-heals overlayTabId after SW restarts.
+function showOverlayOnActiveTab() {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    const tab = tabs[0];
+    if (!isInjectableTab(tab)) return;
+    if (overlayTabId != null && overlayTabId !== tab.id) {
+      chrome.tabs.sendMessage(overlayTabId, { type: 'HIDE_OVERLAY' }).catch(() => {});
+    }
+    overlayTabId = tab.id;
+    chrome.tabs.sendMessage(tab.id, { type: 'START_OVERLAY' }).catch(() => {});
+  });
+}
+
+async function moveOverlayIfEnabled() {
+  const { wavrEnabled } = await chrome.storage.local.get('wavrEnabled');
+  if (wavrEnabled) showOverlayOnActiveTab();
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -142,21 +212,19 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.action.onClicked.addListener(async () => {
   const { firstRunDone } = await chrome.storage.local.get('firstRunDone');
   if (!firstRunDone) {
+    // B2: first click opens the wizard (a thin overlay). Camera permission must be
+    // requested from a *visible* page — an offscreen getUserMedia can't show a
+    // prompt — so the wizard's "Allow camera" grants it and then enables the live
+    // controller (B5/ensureEnabled), making the first interaction a working feed.
     await chrome.storage.local.set({ firstRunDone: true });
     chrome.runtime.openOptionsPage();
     return;
   }
 
+  // Subsequent clicks toggle the live controller directly.
   const exists = await chrome.offscreen.hasDocument();
-  if (exists) {
-    await closeOffscreen();
-    broadcastToTabs({ type: 'HIDE_OVERLAY' });
-    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
-  } else {
-    await createOffscreen();
-    broadcastToTabs({ type: 'START_OVERLAY' });
-    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: true }).catch(() => {});
-  }
+  if (exists) await disableWavr();
+  else        await enableWavr();
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
@@ -164,47 +232,51 @@ chrome.commands.onCommand.addListener(async (command) => {
   const { firstRunDone } = await chrome.storage.local.get('firstRunDone');
   if (!firstRunDone) return;
   const exists = await chrome.offscreen.hasDocument();
-  if (exists) {
-    await closeOffscreen();
-    broadcastToTabs({ type: 'HIDE_OVERLAY' });
-    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
-  } else {
-    await createOffscreen();
-    broadcastToTabs({ type: 'START_OVERLAY' });
-    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: true }).catch(() => {});
-  }
+  if (exists) await disableWavr();
+  else        await enableWavr();
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TOGGLE') {
     chrome.offscreen.hasDocument().then(async (exists) => {
-      if (exists) {
-        await closeOffscreen();
-        broadcastToTabs({ type: 'HIDE_OVERLAY' });
-        sendResponse({ enabled: false });
-      } else {
-        await createOffscreen();
-        broadcastToTabs({ type: 'START_OVERLAY' });
-        sendResponse({ enabled: true });
-      }
+      if (exists) { await disableWavr(); sendResponse({ enabled: false }); }
+      else        { await enableWavr();  sendResponse({ enabled: true }); }
+    });
+    return true;
+  }
+
+  if (message.type === 'ENABLE') {
+    // Idempotent turn-on used by the onboarding wizard (B5) so finishing onboarding
+    // leaves the real controller running — not just the popup's preview recognizer.
+    chrome.offscreen.hasDocument().then(async (exists) => {
+      if (!exists) await enableWavr();
+      sendResponse({ enabled: true });
     });
     return true;
   }
 
   if (message.type === 'STOP') {
     chrome.offscreen.hasDocument().then(async (exists) => {
-      if (exists) {
-        await closeOffscreen();
-        broadcastToTabs({ type: 'HIDE_OVERLAY' });
-        chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
-      }
+      if (exists) await disableWavr();
       sendResponse({ enabled: false });
     });
     return true;
   }
 
   if (message.type === 'GET_STATUS') {
-    chrome.offscreen.hasDocument().then(exists => {
+    chrome.offscreen.hasDocument().then(async (exists) => {
+      // A content script self-heals by showing its widget when enabled. Under A2
+      // only the active tab should — so a content script only sees enabled:true
+      // when it IS the active tab (and we adopt it as the overlay owner, which
+      // re-establishes overlayTabId after a SW restart). The popup has no
+      // sender.tab and always gets the raw global state for its status pill.
+      if (sender.tab && exists) {
+        const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const isActive = !!active && active.id === sender.tab.id;
+        if (isActive) overlayTabId = sender.tab.id;
+        sendResponse({ enabled: isActive });
+        return;
+      }
       sendResponse({ enabled: exists });
     });
     return true;
@@ -234,23 +306,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  // Per-frame / per-state traffic goes only to the active overlay tab (A2).
   if (message.type === 'VIDEO_FRAME') {
-    broadcastToTabs(message);
+    routeToOverlayTab(message);
     return false;
   }
 
   if (message.type === 'GESTURE_DISPLAY') {
-    broadcastToTabs({ type: 'GESTURE_DISPLAY', label: message.label });
+    routeToOverlayTab({ type: 'GESTURE_DISPLAY', label: message.label });
     return false;
   }
 
   if (message.type === 'OVERLAY_STATE') {
-    broadcastToTabs(message);
+    routeToOverlayTab(message);
     return false;
   }
 
   if (message.type === 'CURSOR_MODE_CHANGE') {
-    broadcastToTabs(message);
+    routeToOverlayTab(message);
     if (message.active) {
       chrome.storage.local.get(['achievements'], (r) => {
         const a = { ...(r.achievements || {}), cursorUsed: true };
@@ -261,7 +334,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'CURSOR_STATE' || message.type === 'CURSOR_CLICK') {
-    broadcastToTabs(message);
+    routeToOverlayTab(message);
     return false;
   }
 
@@ -278,17 +351,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     }
 
-    chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
-      const activeTab = activeTabs[0];
-      chrome.tabs.query({}, (tabs) => {
-      const eligible = tabs.filter(t =>
-        t.url && !isRestrictedUrl(t.url)
-      );
-      const target = (activeTab && !isRestrictedUrl(activeTab.url))
-        ? activeTab
-        : eligible.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
-
-      if (target?.id) {
+    // A9: act ONLY on the tab the user is actually looking at. The old code
+    // fell back to the most-recently-accessed eligible tab across *all* windows,
+    // so a stray gesture could scroll — or CLOSE_TAB — a page the user can't see.
+    // Use lastFocusedWindow and, if that tab is ineligible, do nothing.
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+      const target = tabs[0];
+      if (target?.id && !isRestrictedUrl(target.url)) {
         const action = message.action;
 
         if (action === 'NEW_TAB') {
@@ -302,42 +371,76 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         chrome.storage.local.get(['scrollAmount'], ({ scrollAmount }) => {
           const amount = Math.max(100, Math.min(1200, scrollAmount ?? 400));
+
+          // Runs in the page (and, on the fallback pass, in every frame). Returns
+          // true if this frame had a usable scroll target / handled the action —
+          // used to decide whether to retry across iframes (A7, Finding 4D).
+          const doScroll = (action, amount) => {
+            // Navigation acts on the top frame only.
+            if (action === 'GO_BACK')    { if (window.top === window) { history.back();    return true; } return false; }
+            if (action === 'GO_FORWARD') { if (window.top === window) { history.forward(); return true; } return false; }
+
+            const canScroll = (el) => {
+              if (!el || el.nodeType !== 1) return false;
+              if (el.scrollHeight - el.clientHeight <= 1) return false;
+              if (el === document.scrollingElement || el === document.documentElement || el === document.body) return true;
+              const oy = getComputedStyle(el).overflowY;
+              return oy === 'auto' || oy === 'scroll';
+            };
+
+            function getScrollTarget() {
+              // 1) Whatever is under the viewport centre — walk up to a scrollable
+              //    ancestor. Targets the pane the user is actually reading, incl.
+              //    nested SPA containers the old direct-children scan missed.
+              let el = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+              for (let i = 0; el && i < 20 && el !== document.body && el !== document.documentElement; i++, el = el.parentElement) {
+                if (canScroll(el)) return el;
+              }
+              // 2) The page scroller, if the document itself scrolls.
+              const se = document.scrollingElement;
+              if (se && se.scrollHeight - se.clientHeight > 1) return se;
+              // 3) Deep scan for the largest scrollable container (bounded).
+              let best = null, bestScore = 0, budget = 1500;
+              const stack = document.body ? [...document.body.children] : [];
+              while (stack.length && budget-- > 0) {
+                const node = stack.pop();
+                if (node.nodeType !== 1) continue;
+                const score = node.scrollHeight - node.clientHeight;
+                if (score > bestScore && canScroll(node)) { bestScore = score; best = node; }
+                if (node.children.length) stack.push(...node.children);
+              }
+              return best;
+            }
+
+            const t = getScrollTarget();
+            if (!t) return false; // nothing scrollable here — let the fallback try iframes
+            if (action === 'SCROLL_DOWN')        t.scrollBy({ top: amount, behavior: 'smooth' });
+            else if (action === 'SCROLL_UP')     t.scrollBy({ top: -amount, behavior: 'smooth' });
+            else if (action === 'SCROLL_TOP')    t.scrollTo({ top: 0, behavior: 'smooth' });
+            else if (action === 'SCROLL_BOTTOM') t.scrollTo({ top: t.scrollHeight, behavior: 'smooth' });
+            else if (action === 'SCROLL_UP_PAGE')   t.scrollBy({ top: -innerHeight * 0.85, behavior: 'smooth' });
+            else if (action === 'SCROLL_DOWN_PAGE') t.scrollBy({ top: innerHeight * 0.85, behavior: 'smooth' });
+            return true;
+          };
+
           chrome.scripting.executeScript({
             target: { tabId: target.id },
-            func: (action, amount) => {
-              function getScrollTarget() {
-                function isScrollable(el) {
-                  const s = window.getComputedStyle(el);
-                  return /auto|scroll/.test(s.overflow + s.overflowY);
-                }
-                const se = document.scrollingElement;
-                if (se && se.scrollHeight - se.clientHeight > 0) return se;
-                let el = document.activeElement;
-                for (let i = 0; i < 5 && el && el !== document.body; i++, el = el.parentElement) {
-                  if (el.scrollHeight - el.clientHeight > 0 && isScrollable(el)) return el;
-                }
-                let best = null, bestScore = 0;
-                for (const child of document.body.children) {
-                  const score = child.scrollHeight - child.clientHeight;
-                  if (score > bestScore && isScrollable(child)) { bestScore = score; best = child; }
-                }
-                return best || document.documentElement;
-              }
-              const t = getScrollTarget();
-              if (action === 'SCROLL_DOWN') t.scrollBy({ top: amount, behavior: 'smooth' });
-              else if (action === 'SCROLL_UP') t.scrollBy({ top: -amount, behavior: 'smooth' });
-              else if (action === 'GO_BACK') history.back();
-              else if (action === 'GO_FORWARD') history.forward();
-              else if (action === 'SCROLL_TOP') t.scrollTo({ top: 0, behavior: 'smooth' });
-              else if (action === 'SCROLL_BOTTOM') t.scrollTo({ top: t.scrollHeight, behavior: 'smooth' });
-              else if (action === 'SCROLL_UP_PAGE') t.scrollBy({ top: -window.innerHeight * 0.85, behavior: 'smooth' });
-              else if (action === 'SCROLL_DOWN_PAGE') t.scrollBy({ top: window.innerHeight * 0.85, behavior: 'smooth' });
-            },
-            args: [action, amount]
+            func: doScroll,
+            args: [action, amount],
+          }).then((results) => {
+            // If the top frame had nothing to scroll, retry across all frames so
+            // iframed reading content (docs/embedded viewers) still moves (A7).
+            const handled = results?.some(r => r.result);
+            if (!handled) {
+              chrome.scripting.executeScript({
+                target: { tabId: target.id, allFrames: true },
+                func: doScroll,
+                args: [action, amount],
+              }).catch(() => {});
+            }
           }).catch(() => {});
         });
       }
-      });
     });
   }
 });
@@ -358,26 +461,28 @@ async function injectIntoExistingTabs() {
   }
 }
 
-function registerKeepAliveAlarm() {
-  chrome.alarms.create('keepAlive', { periodInMinutes: 0.25 });
-}
-
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== 'keepAlive') return;
   const exists = await chrome.offscreen.hasDocument();
-  if (!exists) {
-    chrome.alarms.clear('keepAlive');
-    broadcastToTabs({ type: 'HIDE_OVERLAY' });
-    chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
+  if (exists) return;
+  // No live document — but if the user still wants Wavr on (e.g. the SW woke
+  // before resumeIfEnabled ran), re-arm rather than tearing the UI down.
+  const { wavrEnabled } = await chrome.storage.local.get('wavrEnabled');
+  if (wavrEnabled) {
+    await resumeIfEnabled();
+    return;
   }
+  chrome.alarms.clear('keepAlive');
+  broadcastToTabs({ type: 'HIDE_OVERLAY' });
+  chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
 });
 
 chrome.runtime.onInstalled.addListener(() => {
   injectIntoExistingTabs();
-  registerKeepAliveAlarm();
+  resumeIfEnabled();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   injectIntoExistingTabs();
-  registerKeepAliveAlarm();
+  resumeIfEnabled();
 });
