@@ -31,30 +31,6 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'STATUS_CHANGED') applyStatus(message.enabled);
 });
 
-// ── Tutorial videos ──────────────────────────────────────────────────────────
-
-function loadVideo(videoEl, placeholderEl, assetPath) {
-  videoEl.addEventListener('canplay', () => {
-    videoEl.style.display = 'block';
-    placeholderEl.style.display = 'none';
-  }, { once: true });
-  videoEl.addEventListener('error', () => {
-    placeholderEl.querySelector('.ph-text').textContent = 'Video not available';
-  }, { once: true });
-  videoEl.src = chrome.runtime.getURL(assetPath);
-}
-
-loadVideo(
-  document.getElementById('videoGood'),
-  document.getElementById('placeholderGood'),
-  'assets/videos/do.mp4'
-);
-loadVideo(
-  document.getElementById('videoBad'),
-  document.getElementById('placeholderBad'),
-  'assets/videos/dont.mp4'
-);
-
 // ── Feature chips + gesture reference (kept in sync with storage) ────────────
 
 const chipDefaults = {

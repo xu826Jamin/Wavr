@@ -334,61 +334,63 @@
     }
 
     /* ── TUTORIAL ── */
-    .video-pair {
+    .dd-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
       margin-top: 32px;
     }
-    .video-card {
+    .dd-card {
       border-radius: 14px;
-      overflow: hidden;
       background: #141414;
       border: 1px solid #1e1e1e;
+      padding: 22px;
     }
-    .video-card.good { border-color: #1e3a2a; }
-    .video-card.bad  { border-color: #3a1e1e; }
-    .video-card video {
-      width: 100%;
-      aspect-ratio: 16/9;
-      object-fit: cover;
-      display: block;
-    }
-    .video-placeholder {
-      width: 100%;
-      aspect-ratio: 16/9;
+    .dd-card.do   { border-color: #1e3a2a; }
+    .dd-card.dont { border-color: #3a1e1e; }
+    .dd-head {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      background: #111;
-    }
-    .video-placeholder .ph-icon { font-size: 32px; opacity: 0.35; }
-    .video-placeholder .ph-text { font-size: 12px; color: #444; }
-    .video-card-label {
-      padding: 12px 16px;
+      gap: 10px;
       font-size: 13px;
       font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      margin-bottom: 18px;
     }
-    .video-card.good .video-card-label { color: #4ade80; }
-    .video-card.bad  .video-card-label { color: #f87171; }
-    .video-badge {
+    .dd-card.do   .dd-head { color: #4ade80; }
+    .dd-card.dont .dd-head { color: #f87171; }
+    .dd-badge {
       font-size: 11px;
       padding: 2px 8px;
       border-radius: 999px;
       font-weight: 700;
     }
-    .video-card.good .video-badge { background: rgba(74,222,128,0.12); color: #4ade80; }
-    .video-card.bad  .video-badge { background: rgba(248,113,113,0.12); color: #f87171; }
-    .video-card-tip {
-      padding: 0 16px 14px;
-      font-size: 12px;
-      color: #555;
+    .dd-card.do   .dd-badge { background: rgba(74,222,128,0.12); color: #4ade80; }
+    .dd-card.dont .dd-badge { background: rgba(248,113,113,0.12); color: #f87171; }
+    .dd-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+    }
+    .dd-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
       line-height: 1.5;
+      color: #b0b0b0;
+    }
+    .dd-list .dd-mark {
+      flex: none;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+    .dd-card.do   .dd-mark { color: #4ade80; }
+    .dd-card.dont .dd-mark { color: #f87171; }
+    @media (max-width: 640px) {
+      .dd-grid { grid-template-columns: 1fr; }
     }
 
     /* ── PRACTICE ── */
@@ -1106,7 +1108,7 @@
     }
 
     /* ── CARD DEPTH SHADOWS ────────────────────────────────────────── */
-    .settings-card, .step-card, .video-card, .cursor-card,
+    .settings-card, .step-card, .dd-card, .cursor-card,
     .mockup-panel, .preset-card { box-shadow: var(--shadow-card); }
 
     .step-card:hover {
@@ -2322,7 +2324,7 @@
     <div class="snav-line snav-scroll-only"></div>
     <button class="snav-dot snav-scroll-only" data-target="setup" title="Setup"></button>
     <div class="snav-line snav-scroll-only"></div>
-    <button class="snav-dot snav-scroll-only" data-target="tutorial" title="Tutorial"></button>
+    <button class="snav-dot snav-scroll-only" data-target="tutorial" title="Dos &amp; Don'ts"></button>
     <div class="snav-line snav-scroll-only"></div>
     <button class="snav-dot snav-scroll-only" data-target="settings" title="Settings"></button>
     <button class="snav-dot snav-cursor-only" data-target="cursor-settings" title="Cursor Settings"></button>
@@ -2727,36 +2729,34 @@
         </div>
       </section>
 
-      <!-- TUTORIAL -->
+      <!-- DOS & DON'TS -->
       <section id="tutorial">
         <div class="section-eyebrow">Learn</div>
-        <h2 class="section-heading reveal" data-reveal-i="0">Tutorial</h2>
-        <p class="section-sub">Good hand placement and lighting make gesture detection fast and reliable.</p>
+        <h2 class="section-heading reveal" data-reveal-i="0">Dos &amp; Don'ts</h2>
+        <p class="section-sub">Good lighting, framing, and steady gestures make detection fast and reliable.</p>
 
-        <div class="video-pair">
-          <div class="video-card good">
-            <div id="placeholderGood" class="video-placeholder">
-              <div class="ph-icon">✅</div>
-              <div class="ph-text">Tutorial video loading…</div>
-            </div>
-            <video id="videoGood" autoplay loop muted playsinline style="display:none;"></video>
-            <div class="video-card-label">
-              <span class="video-badge">✓ DO THIS</span>
-              Good technique
-            </div>
-            <div class="video-card-tip">Keep your hand 30–50 cm from camera, fingers spread, neutral background, good lighting.</div>
+        <div class="dd-grid">
+          <div class="dd-card do">
+            <div class="dd-head"><span class="dd-badge">✓ DO</span> For reliable detection</div>
+            <ul class="dd-list">
+              <li><span class="dd-mark">✓</span> Light your hand evenly from the front.</li>
+              <li><span class="dd-mark">✓</span> Keep your hand 30–50 cm from the camera.</li>
+              <li><span class="dd-mark">✓</span> Face your palm to the camera with fingers spread.</li>
+              <li><span class="dd-mark">✓</span> Frame your whole hand inside the camera view.</li>
+              <li><span class="dd-mark">✓</span> Use a plain, uncluttered background.</li>
+              <li><span class="dd-mark">✓</span> Make deliberate, steady swipes.</li>
+            </ul>
           </div>
-          <div class="video-card bad">
-            <div id="placeholderBad" class="video-placeholder">
-              <div class="ph-icon">❌</div>
-              <div class="ph-text">Tutorial video loading…</div>
-            </div>
-            <video id="videoBad" autoplay loop muted playsinline style="display:none;"></video>
-            <div class="video-card-label">
-              <span class="video-badge">✗ AVOID</span>
-              Common mistakes
-            </div>
-            <div class="video-card-tip">Avoid dark rooms, busy backgrounds, hands too close/far, or fast jerky movements.</div>
+          <div class="dd-card dont">
+            <div class="dd-head"><span class="dd-badge">✗ DON'T</span> What trips it up</div>
+            <ul class="dd-list">
+              <li><span class="dd-mark">✗</span> Sit in a dim room or with a bright light behind you.</li>
+              <li><span class="dd-mark">✗</span> Hold your hand too close or too far from the camera.</li>
+              <li><span class="dd-mark">✗</span> Let your hand drift out of frame or get half cut off.</li>
+              <li><span class="dd-mark">✗</span> Use a busy or moving background.</li>
+              <li><span class="dd-mark">✗</span> Make fast, jerky, or tiny movements.</li>
+              <li><span class="dd-mark">✗</span> Let other hands or faces into the frame.</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -3178,8 +3178,8 @@
       });
     });
 
-    // Video cards — staggered
-    document.querySelectorAll('.video-card').forEach((el, i) => {
+    // Dos & Don'ts cards — staggered
+    document.querySelectorAll('.dd-card').forEach((el, i) => {
       el.classList.add('scroll-reveal');
       el.style.transitionDelay = `${i * 110}ms`;
       revealObs.observe(el);
