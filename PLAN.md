@@ -26,11 +26,11 @@ device, the incumbent (trackpad/mouse/keyboard) beats Wavr on *every* action in 
 wins where touching the device is physically costly. So the plan optimizes a *small, rock-solid,
 low-frequency* scroll loop and treats cursor mode, 16 mappings, and gamification as deletable.
 
-**Make-or-break precondition (Section 6 gate):** can false positives (Finding 3A) be driven low
-*during active eating/cooking* — the worst case for incidental wrist motion? This needs the A4 fix
-**and a live-hardware measurement**. Eating/cooking moves the wrist well past the 0.12 swipe
-threshold; if accidental scrolls/tab-closes can't be suppressed there, the convenience is erased.
-Do not declare the wedge validated on code review alone.
+**Make-or-break precondition (Section 6 gate) — MET.** Can false positives (Finding 3A) be driven low
+*during active eating/cooking* — the worst case for incidental wrist motion? This needed the A4 fix
+**and a live-hardware measurement**. ✅ Validated on real hardware: false fires are near-zero during
+active eating/cooking and small intentional flicks still register, with the shipped A4 defaults
+unchanged. The wedge is no longer gated on this; double-down is confirmed.
 
 **Success metrics (instrumented locally only — nothing leaves device):**
 - **Activation:** ≥3 successful `GESTURE_DETECTED` (action ≠ NONE) in the first session. Already
@@ -72,7 +72,7 @@ Do not declare the wedge validated on code review alone.
   popup (no `sender.tab`) still gets raw global state. Toggle paths collapsed into `enableWavr()`/
   `disableWavr()` helpers. HIDE_OVERLAY + CAMERA_ERROR remain broadcasts.
 
-- [x] **A4 — Real false-positive suppression** `[SHARPENED — make-or-break]` `done (code) · NEEDS HARDWARE VALIDATION`
+- [x] **A4 — Real false-positive suppression** `[SHARPENED — make-or-break]` `done · HARDWARE VALIDATED`
   *Retention: critical · Effort: M.* **Root cause (Finding 3A):** the 0.75 pose-confidence gate does
   **not** gate whether a swipe fires — only which mapping prefix is used. `pose` becomes `'None'` when
   unconfident (`offscreen.js:183`), and `isOpen = pose === 'Open_Palm' || pose === 'None'`
@@ -98,10 +98,11 @@ Do not declare the wedge validated on code review alone.
   test + new `axisPurity` setting. Tests confirm: clean up/down/left/right swipes fire; eating jitter,
   sub-threshold motion, diagonals, and pose-flicker (None half the frames) are all suppressed; a short
   flick (dy 0.13) just over threshold still fires (A3 probe).
-  **STILL OPEN — the actual Section 6 gate:** the live eating/cooking hardware measurement has NOT been
-  done (cannot be done from code review). Load the rebuilt `dist/`, eat/cook in front of the cam, and
-  confirm false fires are near-zero AND small intentional flicks register. Co-tune
-  `directness`/`axisPurity`/`poseAgree`/`velocityThreshold` with A3 against that recording.
+  **Section 6 gate — CLEARED (hardware validated):** the live eating/cooking measurement was run
+  against the rebuilt `dist/`. Result: false fires near-zero during active eating/cooking AND small
+  intentional flicks still register, with **no tuning changes needed** — the shipped
+  `directness`/`axisPurity`/`poseAgree`/`velocityThreshold` defaults hold up on real hardware. The
+  make-or-break precondition for the hands-busy reading wedge is met; double-down is confirmed.
 
 - [ ] **A3 — Support small/lazy gestures (tunable swipe distance / buffer)** `todo`
   *Retention: high · Effort: M.* Make `velocityThreshold` (0.12) and `bufferSize` (8) tunable and lower
