@@ -4,7 +4,7 @@
   window.__wavrLoaded = true;
 
   const HOST_ID = 'wavr-pip-host';
-  const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/wavr/placeholder';
+  const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogijjildgiiikkibdmekhpo';
 
   const CSS = `
     :host {

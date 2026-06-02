@@ -63,11 +63,11 @@ victory_swipe_up/down/left/right
 
 ## Key constants to update before shipping
 
-In `src/popup/popup.js` and `src/content/overlay.js`:
+In `src/popup/popup.js` and `src/content/overlay.js` (now set to the published listing):
 ```js
-const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/wavr/placeholder';
+const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogijjildgiiikkibdmekhpo';
 ```
-Replace `placeholder` with the real extension ID once published.
+Extension ID: `mekfjddabogijjildgiiikkibdmekhpo`.
 
 Also update `v1.0.0` in the popup.html footer when bumping versions.
 

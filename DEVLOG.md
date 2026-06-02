@@ -59,7 +59,7 @@
 - `popup.js:697-703` — `preset.icon` and `preset.name` come from `PRESETS` constant array (hardcoded in popup.js line 607). Not user-controlled. PASS.
 
 **Remote URLs:**
-- `WAVR_CWS_URL` — Chrome Web Store placeholder (not loaded remotely, used in twitter intent link)
+- `WAVR_CWS_URL` — published Chrome Web Store listing (ext id `mekfjddabogijjildgiiikkibdmekhpo`; not loaded remotely, used in twitter intent link)
 - Twitter intent URLs — user-initiated sharing action, `encodeURIComponent` used correctly
 - SVG namespace (`http://www.w3.org/2000/svg`) — not a network call
 

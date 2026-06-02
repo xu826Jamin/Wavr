@@ -1,7 +1,7 @@
 import { createIcons, Camera, Crosshair, Move, Star, Info, ExternalLink } from 'lucide';
 import { initScrollReveal } from './scrollReveal.js';
 
-const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/wavr/placeholder';
+const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogijjildgiiikkibdmekhpo';
 
 const GESTURE_KEYS = [
   'open_swipe_up',    'open_swipe_down',    'open_swipe_left',    'open_swipe_right',
