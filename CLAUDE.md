@@ -117,8 +117,18 @@ site-footer (fixed, "Made with ♥ by Wavr · v1.0.0")
 - `scripting` — inject overlay.js and execute scroll actions
 - `storage` — persist settings
 - `tabs` — query tabs for broadcasting and action targeting
+- `alarms` — `keepAlive` alarm (every 15s while enabled) keeps the MV3 service worker + offscreen gesture-detection doc alive and re-arms them after a worker restart
 - `camera` (optional) — requested at runtime via `getUserMedia`
 - `host_permissions: <all_urls>` — inject overlay on any page
+
+### CWS permission justifications (paste into Privacy practices → permission justifications)
+- **alarms** — Wavr uses a single periodic `chrome.alarms` alarm ("keepAlive", ~15s) to keep its background service worker and the offscreen document that runs on-device webcam gesture detection alive while the user has gesture control turned on. Chrome MV3 terminates idle service workers, which would stop gesture detection mid-use; the alarm lets Wavr check the detection document is still running and recreate it if the worker was restarted, so the user doesn't have to manually re-enable Wavr. The alarm is created only when the user turns Wavr on and cleared when they turn it off. No data is collected or transmitted.
+- **offscreen** — Hosts the webcam stream and the MediaPipe gesture recognizer off the service worker (which can't access `getUserMedia`); all video processing stays on-device.
+- **scripting** — Injects the on-page overlay (camera PiP + cursor dot) and executes the mapped scroll/navigation actions on the active tab.
+- **tabs** — Resolves the active tab in the focused window so a gesture acts on the page the user is actually viewing, and routes the camera-preview frames to it.
+- **storage** — Persists user settings (gesture mappings, dead-zone, cursor zone/timings, enabled state) locally. Nothing leaves the device.
+- **host_permissions `<all_urls>`** — The overlay and scroll/navigation actions must work on whatever page the user is reading, which can be any site.
+- **camera (optional)** — Captures the webcam feed used for on-device hand-gesture detection; requested at runtime and active only while Wavr is enabled.
 
 ## Chrome Web Store
 - **Category**: Productivity
