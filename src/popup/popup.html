@@ -1202,6 +1202,33 @@
       gap: 12px;
     }
 
+    .settings-details {
+      margin-top: 8px;
+      border-top: 1px solid #1e1e1e;
+      padding-top: 4px;
+    }
+    .settings-details summary {
+      cursor: pointer;
+      font-size: 11px;
+      color: #555;
+      letter-spacing: 0.5px;
+      padding: 6px 0 2px;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .settings-details summary::before {
+      content: '›';
+      display: inline-block;
+      transition: transform 0.18s;
+      font-size: 13px;
+      line-height: 1;
+    }
+    .settings-details[open] summary::before { transform: rotate(90deg); }
+    .settings-details summary::-webkit-details-marker { display: none; }
+
     /* ── HERO SECTION ────────────────────────────────────────────────────── */
     #hero {
       padding-top: 80px;
@@ -2550,30 +2577,13 @@
               <div class="preview-placeholder-inner" id="permCard">
                 <div class="ph-icon">📷</div>
                 <div class="ph-text">Camera access needed to detect gestures</div>
-                <button class="enable-camera-btn" id="enableCameraBtn">Enable Camera</button>
+                <button class="enable-camera-btn" id="enableCameraBtn">Start Preview</button>
               </div>
               <video id="previewVideo" autoplay playsinline muted></video>
               <canvas id="previewCanvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:14px;pointer-events:none;"></canvas>
               <div id="gestureIndicator"></div>
             </div>
-            <div class="anchor-row">
-              <div class="anchor-info">
-                <span class="anchor-label">Dead zone anchor</span>
-                <span class="anchor-status" id="anchorStatus">Auto</span>
-              </div>
-              <div class="anchor-btns">
-                <button class="anchor-btn" id="anchorPickBtn">Click preview to set</button>
-                <button class="anchor-btn anchor-btn-clear" id="anchorClearBtn">Reset to centre</button>
-              </div>
-            </div>
-            <div class="zone-size-row">
-              <div class="anchor-info">
-                <span class="anchor-label">Dead zone size</span>
-                <span class="anchor-status" id="zoneSizeStatus">Medium</span>
-              </div>
-              <input type="range" id="zoneSizeSlider" min="5" max="30" value="10" step="1" class="wavr-range" style="--slider-fill:20%">
-            </div>
-            <div class="mirror-inline-row">
+            <div class="mirror-inline-row" style="margin-top:10px;border-top:1px solid #1e1e1e;padding-top:10px;padding-bottom:0;">
               <span class="anchor-label">Mirror X</span>
               <label class="wavr-toggle">
                 <input type="checkbox" id="scrollMirrorX" class="wavr-toggle-input">
@@ -2583,6 +2593,26 @@
                 </span>
               </label>
             </div>
+            <details class="settings-details">
+              <summary>Neutral zone</summary>
+              <div class="anchor-row">
+                <div class="anchor-info">
+                  <span class="anchor-label" title="The resting area where your hand pauses between gestures.">Neutral zone anchor</span>
+                  <span class="anchor-status" id="anchorStatus">Auto</span>
+                </div>
+                <div class="anchor-btns">
+                  <button class="anchor-btn" id="anchorPickBtn">Click preview to set</button>
+                  <button class="anchor-btn anchor-btn-clear" id="anchorClearBtn">Reset to centre</button>
+                </div>
+              </div>
+              <div class="zone-size-row">
+                <div class="anchor-info">
+                  <span class="anchor-label" title="The resting area where your hand pauses between gestures.">Neutral zone size</span>
+                  <span class="anchor-status" id="zoneSizeStatus">Medium</span>
+                </div>
+                <input type="range" id="zoneSizeSlider" min="5" max="30" value="10" step="1" class="wavr-range" style="--slider-fill:20%">
+              </div>
+            </details>
           </div>
 
           <!-- Tile: Achievements (area: achiev, cols 1–2, row 3) -->
@@ -2774,21 +2804,7 @@
           <div class="zone-frame-hint">Click to set zone centre</div>
         </div>
         <div class="zone-controls">
-          <div class="zone-slider-row">
-            <span class="zone-slider-label">Width</span>
-            <input type="range" id="cursorZoneW" min="20" max="100" step="1" value="60" class="wavr-range" style="--slider-fill:50%">
-            <span class="zone-slider-value" id="cursorZoneWLabel">60%</span>
-          </div>
-          <div class="zone-slider-row">
-            <span class="zone-slider-label">Height</span>
-            <input type="range" id="cursorZoneH" min="20" max="100" step="1" value="60" class="wavr-range" style="--slider-fill:50%">
-            <span class="zone-slider-value" id="cursorZoneHLabel">60%</span>
-          </div>
-          <div class="zone-status-row">
-            <span class="zone-status-text" id="cursorZoneStatus">Centre 50%, 50% — 60% × 60%</span>
-            <button class="zone-reset-btn" id="cursorZoneReset">Reset to centre</button>
-          </div>
-          <div class="mirror-inline-row" style="margin-top:10px;">
+          <div class="mirror-inline-row" style="padding-top:4px;padding-bottom:4px;">
             <span class="zone-slider-label">Mirror X</span>
             <label class="wavr-toggle">
               <input type="checkbox" id="cursorMirrorXLive" class="wavr-toggle-input">
@@ -2798,6 +2814,23 @@
               </span>
             </label>
           </div>
+          <details class="settings-details">
+            <summary>Active area for cursor control</summary>
+            <div class="zone-slider-row">
+              <span class="zone-slider-label">Width</span>
+              <input type="range" id="cursorZoneW" min="20" max="100" step="1" value="60" class="wavr-range" style="--slider-fill:50%">
+              <span class="zone-slider-value" id="cursorZoneWLabel">60%</span>
+            </div>
+            <div class="zone-slider-row">
+              <span class="zone-slider-label">Height</span>
+              <input type="range" id="cursorZoneH" min="20" max="100" step="1" value="60" class="wavr-range" style="--slider-fill:50%">
+              <span class="zone-slider-value" id="cursorZoneHLabel">60%</span>
+            </div>
+            <div class="zone-status-row">
+              <span class="zone-status-text" id="cursorZoneStatus">Centre 50%, 50% — 60% × 60%</span>
+              <button class="zone-reset-btn" id="cursorZoneReset">Reset to centre</button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -2917,7 +2950,24 @@
           </div>
         </div>
 
-<div class="save-row" style="margin-top:24px;">
+        <!-- Click targets -->
+        <div class="cursor-card" style="margin-top:16px;">
+          <div class="cursor-timing-row">
+            <div>
+              <div class="cursor-toggle-label">Advanced click targets</div>
+              <div class="cursor-toggle-desc">Allow clicks on any element, not just links and buttons. May silently fail on divs and custom controls.</div>
+            </div>
+            <label class="wavr-toggle">
+              <input type="checkbox" id="advancedClickTargets" class="wavr-toggle-input">
+              <span class="wavr-toggle-track">
+                <span class="wavr-toggle-thumb"></span>
+                <span class="wavr-toggle-ripple"></span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="save-row" style="margin-top:24px;">
           <button class="save-btn" id="cursorSaveBtn">Save</button>
           <span class="saved-msg" id="cursorSavedMsg"></span>
         </div>
@@ -2945,6 +2995,22 @@
             style="width:100%;accent-color:#4ade80;cursor:pointer;">
           <div style="display:flex;justify-content:space-between;font-size:10px;color:#333;margin-top:4px;font-family:'SF Mono',ui-monospace,'Cascadia Code',monospace;">
             <span>100 px</span><span>1200 px</span>
+          </div>
+        </div>
+
+        <div class="settings-card reveal" data-reveal-i="0" style="margin-top:16px;padding:16px 20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:13px;color:#ccc;font-weight:600;">Pose-change scroll</div>
+              <div style="font-size:12px;color:#555;margin-top:3px;">Open↔Fist transition scrolls without a swipe</div>
+            </div>
+            <label class="wavr-toggle">
+              <input type="checkbox" id="poseChangeScroll" class="wavr-toggle-input">
+              <span class="wavr-toggle-track">
+                <span class="wavr-toggle-thumb"></span>
+                <span class="wavr-toggle-ripple"></span>
+              </span>
+            </label>
           </div>
         </div>
 

@@ -143,6 +143,8 @@ function broadcastToTabs(message) {
 // We track the single tab that currently owns the overlay and route per-frame
 // traffic only there, moving it as the user switches tabs/windows.
 let overlayTabId = null;
+let lateralStreak   = 0;
+let lastLateralDir  = null;
 
 // Route a per-frame / per-state message to the overlay-owning tab only.
 function routeToOverlayTab(message) {
@@ -204,6 +206,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.cursorTimings) {
     chrome.runtime.sendMessage(
       { type: 'SET_CURSOR_TIMINGS', timings: changes.cursorTimings.newValue },
+      () => { chrome.runtime.lastError; }
+    );
+  }
+  if (changes.poseChangeScroll != null) {
+    chrome.runtime.sendMessage(
+      { type: 'SET_POSE_CHANGE_SCROLL', enabled: changes.poseChangeScroll.newValue ?? false },
       () => { chrome.runtime.lastError; }
     );
   }
@@ -283,14 +291,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'GET_GESTURE_MAP') {
-    chrome.storage.local.get(['gestureMap', 'deadZoneAnchor', 'deadZoneRadius', 'cursorMirrorX', 'cursorZone', 'cursorTimings'], (result) => {
+    chrome.storage.local.get(['gestureMap', 'deadZoneAnchor', 'deadZoneRadius', 'cursorMirrorX', 'cursorZone', 'cursorTimings', 'poseChangeScroll'], (result) => {
       sendResponse({
-        gestureMap:     migrateGestureMap(result.gestureMap),
-        deadZoneAnchor: result.deadZoneAnchor ?? { x: 0.5, y: 0.5 },
-        deadZoneRadius: result.deadZoneRadius ?? null,
-        cursorMirrorX:  result.cursorMirrorX  ?? false,
-        cursorZone:     result.cursorZone     ?? { cx: 0.5, cy: 0.5, w: 0.6, h: 0.6 },
-        cursorTimings:  result.cursorTimings  ?? { thumbHoldMs: 400, clickDwellMs: 200 },
+        gestureMap:      migrateGestureMap(result.gestureMap),
+        deadZoneAnchor:  result.deadZoneAnchor  ?? { x: 0.5, y: 0.5 },
+        deadZoneRadius:  result.deadZoneRadius  ?? null,
+        cursorMirrorX:   result.cursorMirrorX   ?? false,
+        cursorZone:      result.cursorZone      ?? { cx: 0.5, cy: 0.5, w: 0.6, h: 0.6 },
+        cursorTimings:   result.cursorTimings   ?? { thumbHoldMs: 400, clickDwellMs: 200 },
+        poseChangeScroll: result.poseChangeScroll ?? false,
       });
     });
     return true;
@@ -349,6 +358,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const a = { ...(r.achievements || {}), gestureCount: ((r.achievements?.gestureCount) || 0) + 1 };
         chrome.storage.local.set({ achievements: a });
       });
+    }
+
+    // C2: Mirror camera suggestion — 4+ consecutive lateral gestures in the same
+    // direction suggests the user may have a physically-mirrored camera with no
+    // Mirror X set. Show a one-time dismissable hint in the overlay.
+    if (message.gesture === 'SWIPE_LEFT' || message.gesture === 'SWIPE_RIGHT') {
+      if (message.gesture === lastLateralDir) { lateralStreak++; }
+      else { lateralStreak = 1; lastLateralDir = message.gesture; }
+      if (lateralStreak >= 4) {
+        lateralStreak = 0;
+        chrome.storage.local.get('mirrorSuggestionShown', (r) => {
+          if (!r.mirrorSuggestionShown) {
+            chrome.storage.local.set({ mirrorSuggestionShown: true });
+            routeToOverlayTab({ type: 'MIRROR_SUGGEST' });
+          }
+        });
+      }
+    } else if (message.gesture !== 'POSE_CHANGE') {
+      // POSE_CHANGE is vertical (scroll); don't break a lateral streak mid-session
+      lateralStreak = 0;
+      lastLateralDir = null;
     }
 
     // A9: act ONLY on the tab the user is actually looking at. The old code
@@ -436,6 +466,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 target: { tabId: target.id, allFrames: true },
                 func: doScroll,
                 args: [action, amount],
+              }).then((results2) => {
+                if (!results2?.some(r => r.result)) {
+                  routeToOverlayTab({ type: 'SCROLL_NOOP' });
+                }
               }).catch(() => {});
             }
           }).catch(() => {});

@@ -332,7 +332,7 @@ function drawOverlay(wx, wy) {
     ctx.font = 'bold 12px -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(74,222,128,0.9)';
-    ctx.fillText('Click to place dead zone', W / 2, 22);
+    ctx.fillText('Click to place neutral zone', W / 2, 22);
   }
 }
 

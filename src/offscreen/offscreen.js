@@ -62,9 +62,12 @@ function setFrameRate(ms) {
   frameTimer = setInterval(processFrame, ms);
 }
 const positionBuffer = [];
-let gestureOrigin = null;
-let waitingForReset = false;
-let deadZoneAnchor = null;
+let gestureOrigin        = null;
+let waitingForReset      = false;
+let waitingForResetSince = 0;
+let deadZoneAnchor       = null;
+let poseChangeScroll     = false;
+let lastPose             = null;
 
 // ── Cursor mode state ─────────────────────────────────────────────────────────
 let cursorMode    = false;
@@ -96,6 +99,7 @@ chrome.runtime.onMessage.addListener((message) => {
     if (message.timings?.thumbHoldMs  != null) THUMB_UP_HOLD_MS = message.timings.thumbHoldMs;
     if (message.timings?.clickDwellMs != null) CLICK_DWELL_MS   = message.timings.clickDwellMs;
   }
+  if (message.type === 'SET_POSE_CHANGE_SCROLL') poseChangeScroll = message.enabled;
 });
 
 async function init() {
@@ -130,6 +134,7 @@ async function init() {
       if (response?.cursorZone)                cursorZone     = response.cursorZone;
       if (response?.cursorTimings?.thumbHoldMs  != null) THUMB_UP_HOLD_MS = response.cursorTimings.thumbHoldMs;
       if (response?.cursorTimings?.clickDwellMs != null) CLICK_DWELL_MS   = response.cursorTimings.clickDwellMs;
+      if (response?.poseChangeScroll !== undefined)      poseChangeScroll  = response.poseChangeScroll;
     });
     lastHandSeen = Date.now(); // grace period before first idle transition
     setFrameRate(ACTIVE_FRAME_MS);
@@ -179,8 +184,10 @@ function processFrame() {
   if (!results.landmarks?.length) {
     positionBuffer.length = 0;
     waitingForReset = false;
+    waitingForResetSince = 0;
     thumbUpStart   = 0;
     thumbUpToggled = false;
+    lastPose       = null;
     // A1: throttle inference + relay once the hand has been gone long enough.
     if (!idle && now - lastHandSeen > IDLE_AFTER_MS) {
       idle = true;
@@ -221,11 +228,15 @@ function processFrame() {
       chrome.runtime.sendMessage({ type: 'CURSOR_MODE_CHANGE', active: cursorMode });
       chrome.runtime.sendMessage({ type: 'GESTURE_DISPLAY', label: cursorMode ? '👍 Cursor ON' : '👍 Cursor OFF' });
     }
+    lastPose = null; // prevent false pose-change on thumb-up frames
     return;
   } else {
     thumbUpStart   = 0;
     thumbUpToggled = false;
   }
+
+  const prevPose = lastPose;
+  lastPose = pose;
 
   // ── Cursor mode ───────────────────────────────────────────────────────────────
   if (cursorMode) {
@@ -251,7 +262,8 @@ function processFrame() {
 
     if (now - lastStateTime > 33) {
       lastStateTime = now;
-      chrome.runtime.sendMessage({ type: 'CURSOR_STATE', x: smoothX, y: smoothY, clicking: isClosed, cursorZone, wristX: wrist.x, wristY: wrist.y }).catch(() => {});
+      const dwellProgress = isOpen ? Math.min((now - handOpenSince) / CLICK_DWELL_MS, 1.0) : 0;
+      chrome.runtime.sendMessage({ type: 'CURSOR_STATE', x: smoothX, y: smoothY, clicking: isClosed, dwellProgress, cursorZone, wristX: wrist.x, wristY: wrist.y }).catch(() => {});
     }
 
     // ── Gesture actions in cursor mode (pointing + victory swipes still work) ──
@@ -259,7 +271,9 @@ function processFrame() {
     if (waitingForReset && activeOrigin) {
       const dx = wrist.x - activeOrigin.x;
       const dy = wrist.y - activeOrigin.y;
-      if (Math.sqrt(dx * dx + dy * dy) < deadZoneRadius) {
+      const timedOut = now - waitingForResetSince > 3000;
+      if (Math.sqrt(dx * dx + dy * dy) < deadZoneRadius || timedOut) {
+        if (timedOut) debug('reset gate auto-released (cursor mode)');
         waitingForReset = false;
         positionBuffer.length = 0;
       } else {
@@ -276,9 +290,11 @@ function processFrame() {
       const firePose = dominantPose(positionBuffer, settings);
       if (firePose === 'Pointing_Up' || firePose === 'Victory') {
         lastGestureTime = now;
-        gestureOrigin   = deadZoneAnchor ?? { x: positionBuffer[0]?.x ?? wrist.x, y: positionBuffer[0]?.y ?? wrist.y };
-        waitingForReset = true;
+        gestureOrigin        = deadZoneAnchor ?? { x: positionBuffer[0]?.x ?? wrist.x, y: positionBuffer[0]?.y ?? wrist.y };
+        waitingForReset      = true;
+        waitingForResetSince = now;
         positionBuffer.length = 0;
+        debug('reset gate set (cursor mode)');
 
         const prefix    = POSE_PREFIX[firePose];
         const action    = gestureMap[prefix + gesture.toLowerCase()] || 'NONE';
@@ -317,11 +333,29 @@ function processFrame() {
   if (waitingForReset && activeOrigin) {
     const dx = wrist.x - activeOrigin.x;
     const dy = wrist.y - activeOrigin.y;
-    if (Math.sqrt(dx * dx + dy * dy) < deadZoneRadius) {
+    const timedOut = now - waitingForResetSince > 3000;
+    if (Math.sqrt(dx * dx + dy * dy) < deadZoneRadius || timedOut) {
+      if (timedOut) debug('reset gate auto-released (swipe mode)');
       waitingForReset = false;
       positionBuffer.length = 0;
     } else {
       return;
+    }
+  }
+
+  // D2: Pose-change scroll — open↔closed transition fires a scroll without a swipe
+  if (poseChangeScroll && prevPose && pose !== prevPose && now - lastGestureTime > settings.cooldownMs) {
+    let poseAction = null;
+    if (prevPose === 'Open_Palm'   && pose === 'Closed_Fist') poseAction = 'SCROLL_DOWN';
+    if (prevPose === 'Closed_Fist' && pose === 'Open_Palm')   poseAction = 'SCROLL_UP';
+    if (poseAction) {
+      lastGestureTime = now;
+      chrome.runtime.sendMessage({ type: 'GESTURE_DETECTED', gesture: 'POSE_CHANGE', action: poseAction });
+      chrome.runtime.sendMessage({
+        type: 'GESTURE_DISPLAY',
+        label: `${pose === 'Closed_Fist' ? '✊' : '🖐'} Pose change → ${ACTION_LABELS[poseAction]}`,
+      });
+      debug('pose-change', prevPose, '->', pose, '=>', poseAction);
     }
   }
 
@@ -334,9 +368,11 @@ function processFrame() {
     const firePose = dominantPose(positionBuffer, settings);
     if (firePose) {
       lastGestureTime = now;
-      gestureOrigin   = deadZoneAnchor ?? { x: positionBuffer[0].x, y: positionBuffer[0].y };
-      waitingForReset = true;
+      gestureOrigin        = deadZoneAnchor ?? { x: positionBuffer[0].x, y: positionBuffer[0].y };
+      waitingForReset      = true;
+      waitingForResetSince = now;
       positionBuffer.length = 0;
+      debug('reset gate set (swipe mode)');
 
       const mapKey = POSE_PREFIX[firePose] + gesture.toLowerCase();
       const action = gestureMap[mapKey] || 'NONE';

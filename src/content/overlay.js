@@ -177,6 +177,20 @@
       transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1);
     }
     .gesture-bar.dim { color: #2a2a2a; }
+    .coach-hint {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      color: rgba(255,255,255,0.38);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      pointer-events: none;
+      transition: opacity 1s ease;
+      white-space: nowrap;
+    }
     .cooldown-bar {
       position: absolute;
       bottom: 0;
@@ -199,6 +213,7 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       color: #333;
+      animation: livePulse 2.5s ease-in-out infinite;
     }
     .settings-btn {
       width: 100%;
@@ -343,18 +358,26 @@
       transform-origin: 14px 14px;
       transform: rotate(-90deg);
     }
-    @keyframes dwell-fill {
-      from { stroke-dashoffset: 78.5; }
-      to   { stroke-dashoffset: 0; }
+    @keyframes blocked-flash {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
     }
-    .cursor.dwelling .cursor-dwell circle { animation: dwell-fill 0.2s linear forwards; }
+    .cursor.blocked .cursor-path { fill: #f87171; }
+    .cursor.blocked .cursor-svg  { animation: blocked-flash 0.4s ease-out forwards; }
   `;
 
-  let cursorHost    = null;
-  let cursorDot     = null;
-  let cursorCX      = 0;
-  let cursorCY      = 0;
-  let overlayMirrorX = false;
+  let coachHint      = null;
+  let coachDismissed = false;
+  let coachHandSince = 0;
+  let coachLostTimer = null;
+
+  let cursorHost        = null;
+  let cursorDot         = null;
+  let cursorDwellCircle = null;
+  let cursorCX          = 0;
+  let cursorCY          = 0;
+  let overlayMirrorX    = false;
+  let advancedClickTargets = false;
 
   function buildCursor() {
     if (document.getElementById('wavr-cursor-host')) return;
@@ -390,6 +413,7 @@
     dwellCircle.setAttribute('cy', '14');
     dwellCircle.setAttribute('r', '12.5');
     dwellSvg.appendChild(dwellCircle);
+    cursorDwellCircle = dwellCircle;
 
     cursorDot.appendChild(svg);
     cursorDot.appendChild(dwellSvg);
@@ -404,6 +428,31 @@
     return window.getComputedStyle(el).cursor === 'pointer';
   }
 
+  function isReliableClickTarget(el) {
+    if (!el) return false;
+    const tag = el.tagName.toLowerCase();
+    if (['a', 'button', 'input', 'label', 'select', 'textarea'].includes(tag)) return true;
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    return ['button', 'link', 'checkbox', 'radio', 'menuitem', 'option', 'tab'].includes(role);
+  }
+
+  function showClickBlocked() {
+    if (!gestureBar) return;
+    gestureBar.innerHTML = '';
+    gestureBar.classList.remove('dim');
+    const span = document.createElement('span');
+    span.style.cssText = 'color:#f87171;font-size:11px;';
+    span.textContent = 'Not clickable here';
+    gestureBar.appendChild(span);
+    clearTimeout(gestureTimer);
+    gestureTimer = setTimeout(() => {
+      if (gestureBar) {
+        gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
+        gestureBar.classList.add('dim');
+      }
+    }, 1500);
+  }
+
   function updateCursor(state) {
     if (!cursorDot) buildCursor();
     if (!cursorDot) return;
@@ -415,10 +464,16 @@
     const el = document.elementFromPoint(cursorCX, cursorCY);
     cursorDot.classList.toggle('hovering', isClickable(el));
 
-    if (state.clicking) {
-      if (!cursorDot.classList.contains('dwelling')) cursorDot.classList.add('dwelling');
+    // Dwell ring: JS-driven 0→1 during open-palm hold; stays full while clicking
+    const prog = state.dwellProgress ?? 0;
+    if (prog > 0 || state.clicking) {
+      cursorDot.classList.add('dwelling');
+      if (cursorDwellCircle) {
+        cursorDwellCircle.style.strokeDashoffset = state.clicking ? '0' : String(78.5 * (1 - prog));
+      }
     } else {
       cursorDot.classList.remove('dwelling');
+      if (cursorDwellCircle) cursorDwellCircle.style.strokeDashoffset = '78.5';
     }
 
     if (state.clicking && !cursorDot.classList.contains('clicking')) {
@@ -431,6 +486,16 @@
     const sx = x * window.innerWidth;
     const sy = y * window.innerHeight;
     const el = document.elementFromPoint(sx, sy);
+
+    if (!advancedClickTargets && !isReliableClickTarget(el)) {
+      showClickBlocked();
+      if (cursorDot) {
+        cursorDot.classList.add('blocked');
+        setTimeout(() => cursorDot?.classList.remove('blocked'), 500);
+      }
+      return;
+    }
+
     if (el) {
       el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: sx, clientY: sy }));
       el.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true, clientX: sx, clientY: sy }));
@@ -445,7 +510,8 @@
   }
 
   function hideCursor() {
-    if (cursorDot) cursorDot.classList.remove('active', 'clicking', 'dwelling', 'hovering');
+    if (cursorDot) cursorDot.classList.remove('active', 'clicking', 'dwelling', 'hovering', 'blocked');
+    if (cursorDwellCircle) cursorDwellCircle.style.strokeDashoffset = '78.5';
   }
 
   function setMirrorX(mirrored) {
@@ -518,7 +584,7 @@
     // Camera area
     const cameraArea = document.createElement('div');
     cameraArea.className = 'camera-area';
-    cameraArea.title = 'After each gesture, return your hand to the circle to unlock the next one (dead zone reset)';
+    cameraArea.title = 'After each gesture, return your hand to the circle to unlock the next one (neutral zone reset)';
 
     const placeholder = document.createElement('div');
     placeholder.className = 'cam-placeholder';
@@ -539,7 +605,15 @@
     const camWatermark = document.createElement('div');
     camWatermark.className = 'cam-watermark';
     camWatermark.textContent = 'wavr';
-    cameraArea.append(placeholder, videoEl, canvasEl, camWatermark);
+    const coachHintEl = document.createElement('div');
+    coachHintEl.className = 'coach-hint';
+    coachHintEl.textContent = 'Keep hand at arm\'s length';
+    coachHint = coachHintEl;
+    // coachDismissed intentionally NOT reset: survives hide/show within the same tab session
+    coachHandSince = 0;
+    if (coachDismissed) coachHintEl.style.opacity = '0';
+
+    cameraArea.append(placeholder, videoEl, canvasEl, camWatermark, coachHintEl);
 
     // Gesture bar
     gestureBar = document.createElement('div');
@@ -547,7 +621,7 @@
     gestureBar.setAttribute('role', 'status');
     gestureBar.setAttribute('aria-live', 'polite');
     gestureBar.setAttribute('aria-label', 'Gesture status');
-    gestureBar.innerHTML = '<span class="gesture-idle-label">● waiting</span>';
+    gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
 
     // Settings button
     const settingsBtn = document.createElement('button');
@@ -663,10 +737,10 @@
     if (gestureBar && gestureBar.querySelector('.gesture-idle-label')) {
       const label = gestureBar.querySelector('.gesture-idle-label');
       if (state.waitingForReset) {
-        label.textContent = '↩ return to center';
+        label.textContent = '↩ return to circle';
         label.style.color = '#f59e0b';
       } else {
-        label.textContent = '● detecting';
+        label.textContent = '● ready';
         label.style.color = '#4ade80';
       }
     }
@@ -684,6 +758,17 @@
       ctx.roundRect(barX + i * segW + 1, barY, segW - 2, segH, 1.5);
       ctx.fillStyle = i < state.bufferFill ? '#4ade80' : 'rgba(255,255,255,0.12)';
       ctx.fill();
+    }
+
+    // ── Coach hint: fade after 3 s of continuous hand detection ──────────────
+    if (!coachDismissed && coachHint) {
+      if (!coachHandSince) coachHandSince = Date.now();
+      clearTimeout(coachLostTimer);
+      coachLostTimer = setTimeout(() => { coachHandSince = 0; }, 1500);
+      if (Date.now() - coachHandSince >= 3000) {
+        coachDismissed = true;
+        coachHint.style.opacity = '0';
+      }
     }
   }
 
@@ -745,6 +830,9 @@
     latestFrameImg = null;
     camPlaceholder = null;
     liveBadgeAdded = false;
+    coachHint = null;
+    coachHandSince = 0;
+    clearTimeout(coachLostTimer);
     if (onDragMove) { document.removeEventListener('mousemove', onDragMove); onDragMove = null; }
     if (onDragUp)   { document.removeEventListener('mouseup',   onDragUp);   onDragUp   = null; }
     if (host) {
@@ -787,7 +875,7 @@
     clearTimeout(gestureTimer);
     gestureTimer = setTimeout(() => {
       if (gestureBar) {
-        gestureBar.innerHTML = '<span class="gesture-idle-label">● waiting</span>';
+        gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
         gestureBar.classList.add('dim');
       }
     }, 1500);
@@ -805,6 +893,37 @@
       void cam.offsetWidth;
       cam.classList.add('flash');
     }
+  }
+
+  function showMirrorSuggestion() {
+    if (!gestureBar) return;
+    gestureBar.innerHTML = '';
+    gestureBar.classList.remove('dim');
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:5px;width:100%;';
+
+    const text = document.createElement('span');
+    text.style.cssText = 'flex:1;color:#888;font-size:10px;line-height:1.35;';
+    text.textContent = 'Gestures inverted? Try Mirror X in Settings.';
+
+    const openBtn = document.createElement('button');
+    openBtn.style.cssText = 'padding:2px 6px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.22);border-radius:4px;color:#4ade80;font-size:9px;cursor:pointer;flex-shrink:0;font-family:inherit;';
+    openBtn.textContent = 'Open';
+    openBtn.addEventListener('click', () => chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' }));
+
+    const dimBtn = document.createElement('button');
+    dimBtn.style.cssText = 'padding:2px 5px;background:transparent;border:1px solid #252525;border-radius:4px;color:#444;font-size:9px;cursor:pointer;flex-shrink:0;font-family:inherit;';
+    dimBtn.textContent = '×';
+    dimBtn.addEventListener('click', () => {
+      if (gestureBar) {
+        gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
+        gestureBar.classList.add('dim');
+      }
+    });
+
+    row.append(text, openBtn, dimBtn);
+    gestureBar.appendChild(row);
   }
 
   function setupDrag(handle) {
@@ -886,6 +1005,23 @@
       }
     }
     if (message.type === 'GESTURE_DISPLAY')   showGesture(message.label);
+    if (message.type === 'MIRROR_SUGGEST')    showMirrorSuggestion();
+    if (message.type === 'SCROLL_NOOP') {
+      if (!gestureBar) return;
+      gestureBar.innerHTML = '';
+      gestureBar.classList.remove('dim');
+      const noopSpan = document.createElement('span');
+      noopSpan.style.cssText = 'color:#555;font-size:11px;';
+      noopSpan.textContent = 'No scroll target here';
+      gestureBar.appendChild(noopSpan);
+      clearTimeout(gestureTimer);
+      gestureTimer = setTimeout(() => {
+        if (gestureBar) {
+          gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
+          gestureBar.classList.add('dim');
+        }
+      }, 1500);
+    }
     if (message.type === 'OVERLAY_STATE')     drawState(message);
     if (message.type === 'SET_MIRROR_X')      setMirrorX(message.mirrorX);
     if (message.type === 'CURSOR_MODE_CHANGE') {
@@ -895,6 +1031,15 @@
     if (message.type === 'CURSOR_CLICK')  fireCursorClick(message.x, message.y);
   }
   chrome.runtime.onMessage.addListener(handleMessage);
+
+  chrome.storage.local.get('advancedClickTargets', (r) => {
+    advancedClickTargets = r.advancedClickTargets ?? false;
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.advancedClickTargets != null) {
+      advancedClickTargets = changes.advancedClickTargets.newValue;
+    }
+  });
 
   chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
     if (chrome.runtime.lastError) return;

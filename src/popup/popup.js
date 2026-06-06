@@ -109,13 +109,17 @@ function setAllMirrorX(value, save = false) {
   if (save) chrome.storage.local.set({ cursorMirrorX: value });
 }
 
-chrome.storage.local.get(['gestureMap', 'cursorZone', 'cursorMirrorX', 'cursorTimings', 'achievements', 'scrollAmount'], (result) => {
+chrome.storage.local.get(['gestureMap', 'cursorZone', 'cursorMirrorX', 'cursorTimings', 'achievements', 'scrollAmount', 'advancedClickTargets', 'poseChangeScroll'], (result) => {
   applyGestureMap(result.gestureMap || defaults);
   applyCursorZone(result.cursorZone ?? { cx: 0.5, cy: 0.5, w: 0.6, h: 0.6 });
   setAllMirrorX(result.cursorMirrorX ?? false);
   applyTimings(result.cursorTimings);
   applyAchievements(result.achievements);
   applyScrollAmount(result.scrollAmount ?? 400);
+  const advEl = document.getElementById('advancedClickTargets');
+  if (advEl) advEl.checked = result.advancedClickTargets ?? false;
+  const pcsEl = document.getElementById('poseChangeScroll');
+  if (pcsEl) pcsEl.checked = result.poseChangeScroll ?? false;
 });
 
 function applyScrollAmount(val) {
@@ -136,6 +140,10 @@ if (scrollSlider) {
     chrome.storage.local.set({ scrollAmount: parseInt(scrollSlider.value, 10) });
   });
 }
+
+document.getElementById('poseChangeScroll')?.addEventListener('change', (e) => {
+  chrome.storage.local.set({ poseChangeScroll: e.target.checked });
+});
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
@@ -178,12 +186,14 @@ document.getElementById('cursorSaveBtn')?.addEventListener('click', () => {
   const thumbEl  = document.getElementById('thumbHoldMs');
   const clickEl  = document.getElementById('clickDwellMs');
   const mirrorEl = document.getElementById('cursorMirrorXLive');
+  const advEl    = document.getElementById('advancedClickTargets');
   const cursorTimings = {
     thumbHoldMs:  thumbEl ? parseInt(thumbEl.value, 10)  : 400,
     clickDwellMs: clickEl ? parseInt(clickEl.value, 10) : 200,
   };
   const cursorMirrorX = mirrorEl ? mirrorEl.checked : false;
-  chrome.storage.local.set({ cursorTimings, cursorMirrorX }, () => {
+  const advancedClickTargets = advEl ? advEl.checked : false;
+  chrome.storage.local.set({ cursorTimings, cursorMirrorX, advancedClickTargets }, () => {
     const msg = document.getElementById('cursorSavedMsg');
     msg.textContent = '✓ Saved';
     setTimeout(() => { msg.textContent = ''; }, 2000);
@@ -406,8 +416,6 @@ async function startCamera() {
 }
 
 document.getElementById('enableCameraBtn')?.addEventListener('click', startCamera);
-
-startCamera();
 
 window.addEventListener('beforeunload', () => {
   if (previewStream) previewStream.getTracks().forEach(t => t.stop());

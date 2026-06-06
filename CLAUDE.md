@@ -10,6 +10,11 @@
 
 **Build:** Always run `npm run build` after any code change.
 
+## Notes
+- Consumer diagnosis summary saved in [CONSUMER_DIAGNOSIS_2026-06-04.md](CONSUMER_DIAGNOSIS_2026-06-04.md).
+- Prior usability plan archived at [plan_archive/PLAN_2026-06-04.md](plan_archive/PLAN_2026-06-04.md).
+- Consumer usability fixes (Phases A–E, 2026-06-05) — see summary below.
+
 ## What this is
 Wavr is a Chrome MV3 extension that lets users control Chrome (scroll, navigate, click) using hand gestures detected by their webcam. Gesture detection runs via MediaPipe Tasks Vision (`GestureRecognizer`) in an offscreen document. No data leaves the device.
 
@@ -48,6 +53,8 @@ victory_swipe_up/down/left/right
 
 **Thumb Up** (held for `THUMB_UP_HOLD_MS`) toggles cursor mode on/off.
 
+**Pose-change scroll** (optional, off by default): open↔fist transition fires SCROLL_DOWN / SCROLL_UP without a swipe when `poseChangeScroll` is enabled. Controlled by a toggle in Settings.
+
 ## Storage keys (`chrome.storage.local`)
 
 | Key | Type | Description |
@@ -60,6 +67,10 @@ victory_swipe_up/down/left/right
 | `cursorTimings` | `{thumbHoldMs,clickDwellMs}` | Cursor mode timing config |
 | `onboardingComplete` | boolean | First-run wizard completed |
 | `achievements` | `{gestureCount,cursorUsed,presetApplied}` | Achievement tracking |
+| `scrollAmount` | number | Pixels scrolled per gesture (default 400, range 100–1200) |
+| `advancedClickTargets` | boolean | Allow clicks on any element in cursor mode (default false) |
+| `poseChangeScroll` | boolean | Open↔Fist pose transition fires scroll without swipe (default false) |
+| `mirrorSuggestionShown` | boolean | One-time mirror-X suggestion already shown (never resets) |
 
 ## Key constants to update before shipping
 
@@ -142,6 +153,33 @@ site-footer (fixed, "Made with ♥ by Wavr · v1.0.0")
 2. Bump `version` in `manifest.json` (and footer in popup.html)
 3. Rezip `dist/*`
 4. Upload on CWS developer console → Submit for review
+
+---
+
+## Consumer usability fixes — implemented (2026-06-05)
+
+### Phase A — Quick trust wins
+- **A1 Scroll NOOP**: After both top-frame and allFrames scroll passes fail, `background.js` sends `SCROLL_NOOP` to overlay which shows "No scroll target here" for 1.5s.
+- **A2 Overlay text**: "● waiting" → "Move hand into view" (pulsing), "● detecting" → "● ready", "↩ return to center" → "↩ return to circle".
+- **A3 Camera preview**: Camera no longer auto-starts on options page load. "Enable Camera" renamed "Start Preview".
+
+### Phase B — Cursor click reliability
+- **B1 Dwell ring**: `CURSOR_STATE` sends `dwellProgress` (0–1); overlay drives `stroke-dashoffset` on `cursorDwellCircle` directly (CSS `@keyframes` removed).
+- **B2 Click target restriction**: `isReliableClickTarget()` in overlay allows `a/button/input/label/select/textarea` + ARIA roles. `advancedClickTargets` storage toggle unlocks all elements.
+- **B3 Not-clickable feedback**: Blocked click flashes cursor red (`.blocked-flash`), gesture bar shows "Not clickable here" for 1.5s.
+
+### Phase C — First-use guidance
+- **C1 Coach hint**: "Keep hand at arm's length" hint fades after 3s of continuous hand detection; dismissed within a tab session.
+- **C2 Mirror suggestion**: After 4 consecutive same-direction lateral gestures, shows one-time dismissable pill: "Gestures inverted? Try Mirror X in Settings."
+- **C3 Neutral zone rename**: All user-facing "dead zone" → "Neutral zone". Tooltip: "The resting area where your hand pauses between gestures." Internal vars/keys unchanged.
+
+### Phase D — Gesture engine reliability
+- **D1 Auto-reset fallback**: Reset gate auto-releases after 3000ms if hand never returns to neutral zone. Debug logging in dev mode.
+- **D2 Pose-change scroll**: Open↔Fist transition fires SCROLL_DOWN/SCROLL_UP when `poseChangeScroll` is enabled. Toggle in Settings (off by default). `lastPose` cleared on no-hand and thumb-up frames.
+
+### Phase E — Settings simplification
+- **E1 Advanced accordion**: Neutral zone anchor+size collapsed behind `<details>` in bento-camera tile; cursor zone sliders behind `<details>` in cursor live card. Mirror X stays visible at top level in both.
+- **E3 Labels**: "Active area for cursor control" is the cursor zone details summary. Neutral zone labels already in place from C3.
 
 ---
 
