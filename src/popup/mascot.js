@@ -1,208 +1,267 @@
 import * as THREE from 'three';
 
-// ---- Runtime State ----
-let renderer, scene, camera, animRaf;
-let lastFrameTime = 0;
+// ---- Runtime ----
+let renderer, scene, camera, animRaf, lastFrameTime = 0;
 let initDone = false;
 
-// Character parts
-let characterGroup, torsoMesh, headGroup;
-let armPivot, handPivot;
-let fingers = []; // 5 Object3Ds
+// ---- Character parts ----
+let characterGroup, headGroup, armPivot, handPivot;
+let fingers = [];
 let gestureLight;
 
-// Animation targets & current values
+// ---- Animation state ----
+// Arm rotation lerp — using Z as the primary "raise" axis (correct for side-of-body shoulder)
 const arm = {
-  cur: { rx: 0.25, ry: 0, rz: 0.32, px: 0, py: 0 },
-  tgt: { rx: 0.25, ry: 0, rz: 0.32, px: 0, py: 0 },
+  cur: { rx: -0.1, ry: 0, rz: 0.22 },
+  tgt: { rx: -0.1, ry: 0, rz: 0.22 },
 };
-const fCur = [0.35, 0.35, 0.35, 0.35, 0.35];
-const fTgt = [0.35, 0.35, 0.35, 0.35, 0.35];
-let glCur = 0;
-let glTgt = 0;
+const fCur = [0.28, 0.28, 0.28, 0.28, 0.28];
+const fTgt = [0.28, 0.28, 0.28, 0.28, 0.28];
+let glCur = 0, glTgt = 0;
 let breathT = 0;
-
-const camCur = new THREE.Vector3(0, 0.08, 2.2);
-const camTgt = new THREE.Vector3(0, 0.08, 2.2);
+const headRot = { cur: 0, tgt: 0 }; // Y rotation (cute head turn for L/R swipes)
 
 // ---- Pose Library ----
+// rz is the main raise axis: rz≈0.2 = arm at side, rz≈2.1 = arm raised
+// rx tilts arm forward (toward camera): -0.3 looks natural when raised
+// NO position changes — swipe is always pure rotation
 const POSES = {
-  idle:     { arm: { rx: 0.25, ry: 0,    rz: 0.32  }, f: [0.35, 0.35, 0.35, 0.35, 0.35] },
-  open:     { arm: { rx: -0.7, ry: -0.1, rz: 0.08  }, f: [0,    0,    0,    0,    0    ] },
-  closed:   { arm: { rx: -0.6, ry: -0.1, rz: 0.12  }, f: [1.35, 1.35, 1.35, 1.35, 1.35] },
-  pointing: { arm: { rx: -0.8, ry: -0.06,rz: 0.04  }, f: [1.35, 0,    1.35, 1.35, 1.35] },
-  victory:  { arm: { rx: -0.8, ry: -0.06,rz: 0.04  }, f: [1.35, 0,    0,    1.35, 1.35] },
+  idle:     { arm: { rx: -0.1,  ry: 0,  rz: 0.22 }, f: [0.28, 0.28, 0.28, 0.28, 0.28] },
+  open:     { arm: { rx: -0.32, ry: 0,  rz: 2.05 }, f: [0,    0,    0,    0,    0    ] },
+  closed:   { arm: { rx: -0.28, ry: 0,  rz: 1.95 }, f: [1.3,  1.3,  1.3,  1.3,  1.3 ] },
+  pointing: { arm: { rx: -0.38, ry: 0,  rz: 2.1  }, f: [1.3,  0,    1.3,  1.3,  1.3 ] },
+  victory:  { arm: { rx: -0.38, ry: 0,  rz: 2.1  }, f: [1.3,  0,    0,    1.3,  1.3 ] },
 };
 
-const CAM_FRONT = new THREE.Vector3(0,   0.08, 2.2);
-const CAM_SIDE  = new THREE.Vector3(-1.3, 0.1, 1.65);
-const CAM_SIDE_R = new THREE.Vector3(1.3, 0.1, 1.65);
-
-const SWIPE_POS = {
-  up:    { px: 0,     py: 0.3  },
-  down:  { px: 0,     py: -0.3 },
-  left:  { px: -0.32, py: 0    },
-  right: { px: 0.32,  py: 0    },
+// Swipe end rotations — arm STAYS in socket, only rotates further
+const SWIPE_END = {
+  up:    { rx: -0.28, ry: 0,    rz: 2.55 },  // arm pushes higher
+  down:  { rx: -0.08, ry: 0,    rz: 0.38 },  // arm drops below rest
+  left:  { rx: -0.28, ry: 0.62, rz: 2.0  },  // arm sweeps across body
+  right: { rx: -0.28, ry:-0.52, rz: 1.85 },  // arm sweeps outward
 };
 
-// ---- Helpers ----
-function makeGradientMap() {
-  const data = new Uint8Array([0, 120, 255]);
-  const tex = new THREE.DataTexture(data, 3, 1, THREE.RedFormat);
-  tex.needsUpdate = true;
-  return tex;
+// Head Y turn for left/right (chibi head turn — no camera orbit)
+const HEAD_TURN = { up: 0, down: 0, left: 0.32, right: -0.32 };
+
+// ---- Gradient map (3-step toon) ----
+function makeGradMap() {
+  const d = new Uint8Array([0, 100, 255]);
+  const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat);
+  t.needsUpdate = true;
+  return t;
 }
 
-let gradMap;
-function toonMat(color) {
-  return new THREE.MeshToonMaterial({ color, gradientMap: gradMap });
+let gMap;
+const toon  = (c) => new THREE.MeshToonMaterial({ color: c, gradientMap: gMap });
+const basic = (c, o = {}) => new THREE.MeshBasicMaterial({ color: c, ...o });
+const lerp  = (a, b, t) => a + (b - a) * t;
+
+function addOutline(mesh, parent, s = 1.06) {
+  const m = new THREE.Mesh(mesh.geometry, basic(0x0b0b0b, { side: THREE.BackSide }));
+  m.scale.setScalar(s);
+  parent.add(m);
 }
 
-function addOutline(mesh, parent, scale = 1.05) {
-  const out = new THREE.Mesh(
-    mesh.geometry,
-    new THREE.MeshBasicMaterial({ color: 0x0c0c0c, side: THREE.BackSide })
-  );
-  out.scale.setScalar(scale);
-  parent.add(out);
-}
-
-function lerpN(a, b, t) { return a + (b - a) * t; }
-
-// ---- Character Build ----
+// ---- Build Character ----
 function buildCharacter() {
   characterGroup = new THREE.Group();
-  characterGroup.position.y = -0.18;
   scene.add(characterGroup);
 
-  const matBody   = toonMat(0x1c1c1c);
-  const matSkin   = toonMat(0xc49870);
-  const matHair   = toonMat(0x0e0e0e);
-  const matWhite  = toonMat(0xefefef);
-  const matDark   = toonMat(0x101010);
-  const matAccent = toonMat(0x4ade80);
-  const matShirt  = toonMat(0x161616);
+  // Materials
+  const mSkin   = toon(0xc8997a); // warm skin
+  const mHair   = toon(0x100c0c); // very dark, slight warm tint
+  const mBody   = toon(0x181818); // near-black hoodie
+  const mSleeve = toon(0x1e1e1e); // slightly lighter sleeve
+  const mAccent = toon(0x4ade80); // wavr green accent
+  const mWhite  = toon(0xefefef); // eye white
+  const mIris   = toon(0x1a1050); // deep purple-blue iris
+  const mPupil  = toon(0x060608); // near-black pupil
+  const mHilit  = basic(0xffffff); // specular dot
 
-  // ---- Torso ----
-  const torsoGeo = new THREE.BoxGeometry(0.38, 0.48, 0.22);
-  torsoMesh = new THREE.Mesh(torsoGeo, matShirt);
-  torsoMesh.position.y = -0.04;
-  characterGroup.add(torsoMesh);
-  addOutline(torsoMesh, characterGroup, 1.04);
+  // ---- Legs (tiny chibi stumps, barely in frame) ----
+  const legGeo = new THREE.CylinderGeometry(0.075, 0.08, 0.3, 12);
+  [-0.09, 0.09].forEach(x => {
+    const leg = new THREE.Mesh(legGeo, mBody);
+    leg.position.set(x, -0.58, 0);
+    characterGroup.add(leg);
+    addOutline(leg, characterGroup, 1.05);
+  });
 
-  // Collar accent
-  const collarGeo = new THREE.BoxGeometry(0.11, 0.025, 0.24);
-  const collar = new THREE.Mesh(collarGeo, matAccent);
-  collar.position.set(0, 0.195, 0);
-  characterGroup.add(collar);
+  // ---- Torso (compact chibi body) ----
+  const torsoGeo = new THREE.BoxGeometry(0.32, 0.36, 0.22);
+  const torso = new THREE.Mesh(torsoGeo, mBody);
+  torso.position.y = -0.04;
+  characterGroup.add(torso);
+  addOutline(torso, characterGroup, 1.04);
+
+  // Collar accent strip
+  const colGeo = new THREE.BoxGeometry(0.12, 0.02, 0.24);
+  const col = new THREE.Mesh(colGeo, mAccent);
+  col.position.set(0, 0.158, 0);
+  characterGroup.add(col);
 
   // ---- Neck ----
-  const neckGeo = new THREE.CylinderGeometry(0.068, 0.074, 0.11, 12);
-  const neck = new THREE.Mesh(neckGeo, matSkin);
-  neck.position.y = 0.24;
+  const neckGeo = new THREE.CylinderGeometry(0.06, 0.065, 0.1, 12);
+  const neck = new THREE.Mesh(neckGeo, mSkin);
+  neck.position.y = 0.225;
   characterGroup.add(neck);
 
-  // ---- Head Group ----
+  // ---- Head (BIG — chibi proportion) ----
   headGroup = new THREE.Group();
-  headGroup.position.y = 0.395;
+  headGroup.position.y = 0.42;
   characterGroup.add(headGroup);
 
-  // Head sphere
-  const headGeo = new THREE.SphereGeometry(0.19, 20, 16);
-  const headMesh = new THREE.Mesh(headGeo, matSkin);
+  // Head sphere (slightly wider than tall for cute look)
+  const headGeo = new THREE.SphereGeometry(0.3, 24, 20);
+  const headMesh = new THREE.Mesh(headGeo, mSkin);
+  headMesh.scale.set(1.04, 0.96, 1);
   headGroup.add(headMesh);
   addOutline(headMesh, headGroup, 1.04);
 
-  // Hair cap
-  const hairGeo = new THREE.SphereGeometry(0.197, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
-  const hairMesh = new THREE.Mesh(hairGeo, matHair);
-  hairMesh.position.y = 0.022;
-  headGroup.add(hairMesh);
+  // ---- Hair ----
+  // Cap (top ~55% of sphere)
+  const hairCapGeo = new THREE.SphereGeometry(0.315, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.56);
+  const hairCap = new THREE.Mesh(hairCapGeo, mHair);
+  hairCap.position.y = 0.018;
+  headGroup.add(hairCap);
 
-  // Eyes
-  const eyeGeo   = new THREE.SphereGeometry(0.034, 10, 8);
-  const pupilGeo  = new THREE.SphereGeometry(0.019, 8, 6);
-  const glintGeo  = new THREE.SphereGeometry(0.007, 6, 4);
-
-  [[-0.068, 1], [0.068, -1]].forEach(([xOff, side]) => {
-    const eye = new THREE.Mesh(eyeGeo, matWhite);
-    eye.position.set(xOff, 0.048, 0.158);
-    headGroup.add(eye);
-
-    const pupil = new THREE.Mesh(pupilGeo, matDark);
-    pupil.position.set(xOff + side * 0.006, 0.046, 0.172);
-    headGroup.add(pupil);
-
-    const glint = new THREE.Mesh(glintGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    glint.position.set(xOff + side * 0.012, 0.058, 0.176);
-    headGroup.add(glint);
+  // Side hair panels — elongated ovals hanging at cheeks
+  [{x:-0.26, rz: 0.12}, {x: 0.26, rz: -0.12}].forEach(({x, rz}) => {
+    const g = new THREE.SphereGeometry(0.18, 12, 10);
+    const m = new THREE.Mesh(g, mHair);
+    m.position.set(x, -0.14, -0.04);
+    m.scale.set(0.52, 1.45, 0.45);
+    m.rotation.z = rz;
+    headGroup.add(m);
   });
 
-  // ---- Right Arm (character's right, viewer's left) ----
+  // Back hair (covers back of head + hangs slightly)
+  const backGeo = new THREE.SphereGeometry(0.32, 18, 14, 0, Math.PI * 2, Math.PI * 0.38, Math.PI * 0.58);
+  const back = new THREE.Mesh(backGeo, mHair);
+  back.position.y = -0.04;
+  headGroup.add(back);
+
+  // Front fringe / bangs
+  const bangsGeo = new THREE.SphereGeometry(0.13, 10, 8);
+  const bangs = new THREE.Mesh(bangsGeo, mHair);
+  bangs.position.set(0, 0.22, 0.24);
+  bangs.scale.set(1.65, 0.45, 0.7);
+  headGroup.add(bangs);
+
+  // ---- Eyes (large chibi / anime style) ----
+  // Eyes placed in LOWER half of face — big forehead is key to chibi look
+  const eyeY = -0.04;
+  const eyeZ =  0.26;
+
+  [[-0.105, 1], [0.105, -1]].forEach(([xOff, side]) => {
+    // Sclera (white)
+    const scGeo = new THREE.SphereGeometry(0.072, 16, 12);
+    const sc = new THREE.Mesh(scGeo, mWhite);
+    sc.position.set(xOff, eyeY, eyeZ);
+    sc.scale.set(1, 1.18, 0.6);
+    headGroup.add(sc);
+    addOutline(sc, headGroup, 1.08);
+
+    // Iris (large dark circle, ~75% of eye width)
+    const irGeo = new THREE.SphereGeometry(0.054, 14, 10);
+    const ir = new THREE.Mesh(irGeo, mIris);
+    ir.position.set(xOff, eyeY + 0.002, eyeZ + 0.016);
+    ir.scale.set(1, 1.12, 0.44);
+    headGroup.add(ir);
+
+    // Pupil
+    const puGeo = new THREE.SphereGeometry(0.03, 10, 8);
+    const pu = new THREE.Mesh(puGeo, mPupil);
+    pu.position.set(xOff, eyeY - 0.003, eyeZ + 0.03);
+    pu.scale.set(1, 1.05, 0.28);
+    headGroup.add(pu);
+
+    // Main highlight (large, catches eye)
+    const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.014, 7, 5), mHilit);
+    h1.position.set(xOff + side * 0.024, eyeY + 0.026, eyeZ + 0.036);
+    headGroup.add(h1);
+
+    // Secondary small highlight
+    const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.007, 6, 4), mHilit);
+    h2.position.set(xOff - side * 0.018, eyeY - 0.022, eyeZ + 0.036);
+    headGroup.add(h2);
+  });
+
+  // Blush marks (very subtle pink, characteristic of chibi)
+  const blushMat = basic(0xff9aaa, { transparent: true, opacity: 0.2 });
+  [-0.175, 0.175].forEach(x => {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), blushMat);
+    b.position.set(x, eyeY - 0.02, eyeZ - 0.01);
+    b.scale.set(1.35, 0.55, 0.3);
+    headGroup.add(b);
+  });
+
+  // ---- Arm (character's right, viewer's left) ----
+  // IMPORTANT: armPivot position is set ONCE and never changed during animation.
+  // ALL animation is pure rotation around this fixed pivot.
   armPivot = new THREE.Object3D();
-  armPivot.position.set(0.27, 0.14, 0);
+  armPivot.position.set(0.22, 0.1, 0);
   characterGroup.add(armPivot);
 
-  // Upper arm
-  const uArmGeo = new THREE.CylinderGeometry(0.067, 0.056, 0.3, 12);
-  const uArm = new THREE.Mesh(uArmGeo, matBody);
-  uArm.position.y = -0.15;
+  // Upper arm (sleeve)
+  const uArmGeo = new THREE.CylinderGeometry(0.068, 0.056, 0.25, 12);
+  const uArm = new THREE.Mesh(uArmGeo, mSleeve);
+  uArm.position.y = -0.125;
   armPivot.add(uArm);
   addOutline(uArm, armPivot, 1.06);
 
-  // Lower arm
-  const lArmGeo = new THREE.CylinderGeometry(0.054, 0.045, 0.27, 12);
-  const lArm = new THREE.Mesh(lArmGeo, matSkin);
-  lArm.position.y = -0.445;
+  // Lower arm / forearm (skin)
+  const lArmGeo = new THREE.CylinderGeometry(0.054, 0.044, 0.22, 12);
+  const lArm = new THREE.Mesh(lArmGeo, mSkin);
+  lArm.position.y = -0.375;
   armPivot.add(lArm);
   addOutline(lArm, armPivot, 1.06);
 
   // Wrist accent band
-  const wristGeo = new THREE.CylinderGeometry(0.052, 0.052, 0.028, 12);
-  const wristBand = new THREE.Mesh(wristGeo, matAccent);
-  wristBand.position.y = -0.575;
-  armPivot.add(wristBand);
+  const wbGeo = new THREE.CylinderGeometry(0.052, 0.052, 0.025, 12);
+  const wb = new THREE.Mesh(wbGeo, mAccent);
+  wb.position.y = -0.49;
+  armPivot.add(wb);
 
-  // Hand pivot at wrist
+  // Hand pivot (at wrist, CHILD of armPivot — so arm + hand always move together)
   handPivot = new THREE.Object3D();
-  handPivot.position.y = -0.635;
+  handPivot.position.y = -0.525;
   armPivot.add(handPivot);
 
   // Palm
-  const palmGeo = new THREE.BoxGeometry(0.135, 0.108, 0.065);
-  const palm = new THREE.Mesh(palmGeo, matSkin);
-  palm.position.y = -0.054;
+  const palmGeo = new THREE.BoxGeometry(0.12, 0.1, 0.058);
+  const palm = new THREE.Mesh(palmGeo, mSkin);
+  palm.position.y = -0.05;
   handPivot.add(palm);
   addOutline(palm, handPivot, 1.06);
 
-  // Fingers: [thumb, index, middle, ring, pinky]
-  const fingerDefs = [
-    { x: -0.077, y: -0.108, rz:  0.38, len: 0.072 }, // thumb
-    { x: -0.038, y: -0.12,  rz:  0,    len: 0.082 }, // index
-    { x: -0.01,  y: -0.124, rz:  0,    len: 0.086 }, // middle
-    { x:  0.018, y: -0.12,  rz:  0,    len: 0.080 }, // ring
-    { x:  0.046, y: -0.111, rz:  0,    len: 0.066 }, // pinky
+  // Fingers: thumb, index, middle, ring, pinky
+  const fDefs = [
+    { x: -0.072, y: -0.1,   rz: 0.36, len: 0.065 }, // thumb
+    { x: -0.036, y: -0.115, rz: 0,    len: 0.075 }, // index
+    { x: -0.009, y: -0.118, rz: 0,    len: 0.079 }, // middle
+    { x:  0.018, y: -0.114, rz: 0,    len: 0.073 }, // ring
+    { x:  0.043, y: -0.106, rz: 0,    len: 0.06  }, // pinky
   ];
 
   fingers = [];
-  fingerDefs.forEach((fd) => {
+  fDefs.forEach(fd => {
     const pivot = new THREE.Object3D();
     pivot.position.set(fd.x, fd.y, 0);
     pivot.rotation.z = fd.rz;
     handPivot.add(pivot);
-
-    const fGeo  = new THREE.CylinderGeometry(0.016, 0.013, fd.len, 8);
-    const fMesh = new THREE.Mesh(fGeo, matSkin);
+    const fGeo = new THREE.CylinderGeometry(0.015, 0.012, fd.len, 8);
+    const fMesh = new THREE.Mesh(fGeo, mSkin);
     fMesh.position.y = -fd.len / 2;
     pivot.add(fMesh);
-    addOutline(fMesh, pivot, 1.1);
-
+    addOutline(fMesh, pivot, 1.12);
     fingers.push(pivot);
   });
 
-  // ---- Gesture light (near raised hand) ----
-  gestureLight = new THREE.PointLight(0x4ade80, 0, 1.4);
-  gestureLight.position.set(0.22, -0.42, 0.4);
+  // Gesture glow light (near hand area)
+  gestureLight = new THREE.PointLight(0x4ade80, 0, 1.6);
+  gestureLight.position.set(0.3, -0.3, 0.6);
   scene.add(gestureLight);
 }
 
@@ -211,45 +270,43 @@ export function initMascot(canvasEl) {
   if (initDone) return;
   initDone = true;
 
-  gradMap = makeGradientMap();
+  gMap = makeGradMap();
 
   renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
   function resize() {
-    const parent = canvasEl.parentElement;
-    if (!parent) return;
-    const w = parent.clientWidth;
-    const h = parent.clientHeight;
-    renderer.setSize(w, h, false);
-    if (camera) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    const p = canvasEl.parentElement;
+    if (!p) return;
+    renderer.setSize(p.clientWidth, p.clientHeight, false);
+    if (camera) { camera.aspect = p.clientWidth / p.clientHeight; camera.updateProjectionMatrix(); }
   }
   resize();
   new ResizeObserver(resize).observe(canvasEl.parentElement);
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x060606, 0.3);
+  scene.fog = new THREE.FogExp2(0x050505, 0.28);
 
-  const w = canvasEl.parentElement.clientWidth || 400;
-  const h = canvasEl.parentElement.clientHeight || 300;
-  camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 20);
-  camera.position.copy(camCur);
-  camera.lookAt(0, 0.05, 0);
+  const { clientWidth: w = 400, clientHeight: h = 300 } = canvasEl.parentElement;
+  camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 20);
+  // Fixed front-facing camera — never changes angle during gestures
+  camera.position.set(0, 0.28, 2.75);
+  camera.lookAt(0, 0.18, 0);
 
   // Lights
   scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-  const key = new THREE.DirectionalLight(0xffffff, 0.95);
-  key.position.set(-1.5, 2.5, 1.8);
+  const key = new THREE.DirectionalLight(0xffffff, 1.0);
+  key.position.set(-1.2, 2.5, 2.0);
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0x8888ff, 0.15);
-  fill.position.set(1.5, 0, 1);
+  const fill = new THREE.DirectionalLight(0xaaccff, 0.18);
+  fill.position.set(1.5, 0.5, 1.0);
   scene.add(fill);
 
-  const rim = new THREE.DirectionalLight(0x4ade80, 0.12);
-  rim.position.set(1, -1, -1.5);
+  const rim = new THREE.DirectionalLight(0x4ade80, 0.14);
+  rim.position.set(0.8, -0.5, -1.5);
   scene.add(rim);
 
   buildCharacter();
@@ -259,7 +316,6 @@ export function initMascot(canvasEl) {
 // ---- Render Loop (30 fps) ----
 function startLoop() {
   const INTERVAL = 1000 / 30;
-
   function tick(now) {
     animRaf = requestAnimationFrame(tick);
     const dt = now - lastFrameTime;
@@ -271,95 +327,78 @@ function startLoop() {
   animRaf = requestAnimationFrame(tick);
 }
 
-// ---- Per-Frame Update ----
+// ---- Update ----
 function update(dt) {
-  // Frame-rate independent lerp factor (~350ms settle time)
-  const a = 1 - Math.pow(0.002, dt / 500);
+  // Frame-rate independent lerp (~400ms settle)
+  const a = 1 - Math.pow(0.001, dt / 450);
 
-  // Arm
-  arm.cur.rx = lerpN(arm.cur.rx, arm.tgt.rx, a);
-  arm.cur.ry = lerpN(arm.cur.ry, arm.tgt.ry, a);
-  arm.cur.rz = lerpN(arm.cur.rz, arm.tgt.rz, a);
-  arm.cur.px = lerpN(arm.cur.px, arm.tgt.px, a);
-  arm.cur.py = lerpN(arm.cur.py, arm.tgt.py, a);
+  // Arm rotation
+  arm.cur.rx = lerp(arm.cur.rx, arm.tgt.rx, a);
+  arm.cur.ry = lerp(arm.cur.ry, arm.tgt.ry, a);
+  arm.cur.rz = lerp(arm.cur.rz, arm.tgt.rz, a);
 
   if (armPivot) {
     armPivot.rotation.x = arm.cur.rx;
     armPivot.rotation.y = arm.cur.ry;
     armPivot.rotation.z = arm.cur.rz;
-    armPivot.position.x = 0.27 + arm.cur.px;
-    armPivot.position.y = 0.14 + arm.cur.py;
+    // armPivot.position is NEVER modified after buildCharacter — that was the socket bug
   }
 
   // Fingers
   for (let i = 0; i < 5; i++) {
-    fCur[i] = lerpN(fCur[i], fTgt[i], a);
-    if (fingers[i]) fingers[i].rotation.x = -fCur[i];
+    fCur[i] = lerp(fCur[i], fTgt[i], a);
+    if (fingers[i]) fingers[i].rotation.x = -fCur[i]; // negative = curl toward viewer
   }
 
   // Gesture light
-  glCur = lerpN(glCur, glTgt, a * 1.8);
+  glCur = lerp(glCur, glTgt, a * 2);
   if (gestureLight) gestureLight.intensity = glCur;
 
-  // Breathing: torso scale + head bob
-  breathT += dt * 0.001;
-  const breath = Math.sin(breathT * 0.75);
-  if (torsoMesh) torsoMesh.scale.y = 1 + breath * 0.013;
-  if (headGroup) headGroup.position.y = 0.395 + breath * 0.007;
+  // Head turn (cute chibi look)
+  headRot.cur = lerp(headRot.cur, headRot.tgt, a * 0.8);
+  if (headGroup) headGroup.rotation.y = headRot.cur;
 
-  // Camera lerp (slightly slower)
-  const ac = 1 - Math.pow(0.005, dt / 500);
-  camCur.x = lerpN(camCur.x, camTgt.x, ac);
-  camCur.y = lerpN(camCur.y, camTgt.y, ac);
-  camCur.z = lerpN(camCur.z, camTgt.z, ac);
-  if (camera) {
-    camera.position.copy(camCur);
-    camera.lookAt(0, 0.05, 0);
-  }
+  // Breathing: gentle head float
+  breathT += dt * 0.001;
+  const b = Math.sin(breathT * 0.72);
+  if (headGroup) headGroup.position.y = 0.42 + b * 0.007;
 }
 
 // ---- Play Gesture ----
 export function playGesture(pose, dir) {
   if (!initDone) return;
 
-  const p     = POSES[pose] || POSES.open;
-  const swipe = SWIPE_POS[dir] || { px: 0, py: 0 };
+  // Cancel any in-progress animation
+  if (playGesture._timers) playGesture._timers.forEach(clearTimeout);
 
-  // Move to pose
+  const p = POSES[pose] || POSES.open;
+  const sw = SWIPE_END[dir] || SWIPE_END.up;
+
+  // Step 1: move to pose
   arm.tgt.rx = p.arm.rx;
   arm.tgt.ry = p.arm.ry;
   arm.tgt.rz = p.arm.rz;
-  arm.tgt.px = 0;
-  arm.tgt.py = 0;
   for (let i = 0; i < 5; i++) fTgt[i] = p.f[i];
-  glTgt = 1.6;
+  glTgt = 1.8;
+  headRot.tgt = HEAD_TURN[dir] ?? 0;
 
-  // Camera angle based on swipe direction
-  if (dir === 'left')       camTgt.copy(CAM_SIDE);
-  else if (dir === 'right') camTgt.copy(CAM_SIDE_R);
-  else                      camTgt.copy(CAM_FRONT);
-
-  // Swipe after pose settle
+  // Step 2: swipe (arm swings in direction via rotation, stays in socket)
   const t1 = setTimeout(() => {
-    arm.tgt.px = swipe.px;
-    arm.tgt.py = swipe.py;
+    arm.tgt.rx = sw.rx;
+    arm.tgt.ry = sw.ry;
+    arm.tgt.rz = sw.rz;
   }, 380);
 
-  // Return to idle
+  // Step 3: return to idle
   const t2 = setTimeout(() => {
     const idle = POSES.idle;
     arm.tgt.rx = idle.arm.rx;
     arm.tgt.ry = idle.arm.ry;
     arm.tgt.rz = idle.arm.rz;
-    arm.tgt.px = 0;
-    arm.tgt.py = 0;
     for (let i = 0; i < 5; i++) fTgt[i] = idle.f[i];
     glTgt = 0;
-    camTgt.copy(CAM_FRONT);
+    headRot.tgt = 0;
   }, 1150);
 
-  // Store refs so rapid clicks don't pile up
-  playGesture._timers = playGesture._timers || [];
-  playGesture._timers.forEach(clearTimeout);
   playGesture._timers = [t1, t2];
 }
