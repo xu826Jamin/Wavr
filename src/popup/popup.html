@@ -2157,9 +2157,36 @@
       min-height: 20px;
     }
 
-    .explorer-mockup-wrap { position: relative; }
-    .explorer-mockup-wrap .mockup-browser { width: 100%; }
-    .explorer-mockup-wrap .mockup-viewport { height: 200px; position: relative; }
+    .mascot-frame {
+      position: relative;
+      background: #050505;
+      border-radius: 12px;
+      border: 1px solid rgba(74,222,128,0.3);
+      box-shadow: var(--glow-sm), var(--shadow-card);
+      aspect-ratio: 4/3;
+      overflow: hidden;
+      flex: 1;
+      min-height: 200px;
+    }
+    .mascot-frame canvas {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .mascot-scanline {
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px);
+      pointer-events: none; z-index: 2;
+    }
+    .mascot-live-badge {
+      position: absolute; top: 10px; left: 12px; z-index: 3;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(74,222,128,0.25);
+      border-radius: 99px; padding: 3px 10px;
+      font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      font-size: 11px; letter-spacing: 1px; color: #4ade80;
+    }
 
     .explorer-none-label {
       position: absolute;
@@ -2685,42 +2712,14 @@
             <div class="explorer-action-text" id="explorerActionText">--</div>
           </div>
 
-          <!-- Right: Animated Browser Mockup -->
+          <!-- Right: Mascot Demo -->
           <div class="explorer-right">
-            <div class="explorer-mockup-wrap">
-              <div class="mockup-browser">
-                <div class="mockup-bar">
-                  <div class="mockup-dots">
-                    <div class="mockup-dot" style="background:#ff5f57"></div>
-                    <div class="mockup-dot" style="background:#febc2e"></div>
-                    <div class="mockup-dot" style="background:#28c840"></div>
-                  </div>
-                  <div class="mockup-url" id="explorerUrl">wavr.io/demo</div>
-                  <div class="mockup-nav-btns">
-                    <span class="mockup-nav-btn" id="explorerNavBack">‹</span>
-                    <span class="mockup-nav-btn" id="explorerNavFwd">›</span>
-                  </div>
-                </div>
-                <div class="mockup-viewport">
-                  <div class="mockup-track" id="explorerTrack">
-                    <div class="mk-line h8 w70"></div>
-                    <div class="mk-line"></div>
-                    <div class="mk-line w85"></div>
-                    <div class="mk-line w55"></div>
-                    <div class="mk-line"></div>
-                    <div class="mk-line w70"></div>
-                    <div class="mk-line h8 w85" style="margin-top:4px"></div>
-                    <div class="mk-line"></div>
-                    <div class="mk-line w55"></div>
-                    <div class="mk-line w85"></div>
-                    <div class="mk-line"></div>
-                    <div class="mk-line w70"></div>
-                  </div>
-                  <div class="mockup-overlay" id="explorerOverlay"></div>
-                  <div class="explorer-none-label" id="explorerNoneLabel">No action mapped</div>
-                  <div class="explorer-action-badge" id="explorerActionBadge"></div>
-                </div>
-              </div>
+            <div class="mascot-frame" id="mascotFrame">
+              <canvas id="mascotCanvas"></canvas>
+              <div class="mascot-scanline"></div>
+              <div class="mascot-live-badge">● DEMO</div>
+              <div class="explorer-none-label" id="explorerNoneLabel">No action mapped</div>
+              <div class="explorer-action-badge" id="explorerActionBadge"></div>
             </div>
           </div>
         </div>

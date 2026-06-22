@@ -1,5 +1,6 @@
 import { createIcons, Camera, Crosshair, Move, Star, Info, ExternalLink } from 'lucide';
 import { initScrollReveal } from './scrollReveal.js';
+import { initMascot, playGesture } from './mascot.js';
 
 const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogijjildgiiikkibdmekhpo';
 
@@ -934,92 +935,10 @@ function showExplorerBadge(text) {
 }
 
 function runExplorerAnimation(action) {
-  const track   = document.getElementById('explorerTrack');
-  const overlay = document.getElementById('explorerOverlay');
-  const navBack = document.getElementById('explorerNavBack');
-  const navFwd  = document.getElementById('explorerNavFwd');
-  const urlEl   = document.getElementById('explorerUrl');
-  const noneEl  = document.getElementById('explorerNoneLabel');
-  if (!track) return;
-
-  if (overlay) { overlay.className = 'mockup-overlay'; overlay.textContent = ''; }
-  if (navBack) navBack.classList.remove('lit');
-  if (navFwd)  navFwd.classList.remove('lit');
-  if (noneEl)  noneEl.style.display = 'none';
-
+  const noneEl = document.getElementById('explorerNoneLabel');
+  if (noneEl) noneEl.style.display = action === 'NONE' ? 'block' : 'none';
   showExplorerBadge(EXPLORER_ACTION_LABELS[action] || action);
-
-  if (action === 'SCROLL_UP') {
-    track.style.transition = 'none';
-    track.style.transform  = 'translateY(0)';
-    setTimeout(() => {
-      track.style.transition = 'transform 0.4s cubic-bezier(0.16,1,0.3,1)';
-      track.style.transform  = 'translateY(60px)';
-    }, 20);
-    setTimeout(() => {
-      track.style.transition = 'transform 0.6s cubic-bezier(0.4,0,0.2,1)';
-      track.style.transform  = 'translateY(0)';
-    }, 1200);
-  } else if (action === 'SCROLL_DOWN') {
-    track.style.transition = 'none';
-    track.style.transform  = 'translateY(0)';
-    setTimeout(() => {
-      track.style.transition = 'transform 0.4s cubic-bezier(0.16,1,0.3,1)';
-      track.style.transform  = 'translateY(-60px)';
-    }, 20);
-    setTimeout(() => {
-      track.style.transition = 'transform 0.6s cubic-bezier(0.4,0,0.2,1)';
-      track.style.transform  = 'translateY(0)';
-    }, 1200);
-  } else if (action === 'SCROLL_TOP') {
-    track.style.transition = 'transform 0.3s cubic-bezier(0.16,1,0.3,1)';
-    track.style.transform  = 'translateY(0)';
-  } else if (action === 'SCROLL_BOTTOM') {
-    track.style.transition = 'transform 0.3s cubic-bezier(0.16,1,0.3,1)';
-    track.style.transform  = 'translateY(-120px)';
-    setTimeout(() => {
-      track.style.transition = 'transform 0.6s cubic-bezier(0.16,1,0.3,1)';
-      track.style.transform  = 'translateY(0)';
-    }, 1200);
-  } else if (action === 'GO_BACK') {
-    if (navBack) navBack.classList.add('lit');
-    if (urlEl) {
-      urlEl.style.opacity = '0';
-      const urls = ['prev.io/page', 'google.com/search', 'wavr.io'];
-      setTimeout(() => {
-        urlEl.textContent = urls[Math.floor(Math.random() * urls.length)];
-        urlEl.style.opacity = '1';
-      }, 150);
-    }
-    if (overlay) { overlay.textContent = '←'; overlay.className = 'mockup-overlay show'; }
-    setTimeout(() => {
-      if (overlay) overlay.className = 'mockup-overlay';
-      if (navBack) navBack.classList.remove('lit');
-    }, 700);
-  } else if (action === 'GO_FORWARD') {
-    if (navFwd) navFwd.classList.add('lit');
-    if (urlEl) {
-      urlEl.style.opacity = '0';
-      const urls = ['wavr.io/next', 'docs.io/guide', 'github.com/wavr'];
-      setTimeout(() => {
-        urlEl.textContent = urls[Math.floor(Math.random() * urls.length)];
-        urlEl.style.opacity = '1';
-      }, 150);
-    }
-    if (overlay) { overlay.textContent = '→'; overlay.className = 'mockup-overlay show'; }
-    setTimeout(() => {
-      if (overlay) overlay.className = 'mockup-overlay';
-      if (navFwd) navFwd.classList.remove('lit');
-    }, 700);
-  } else if (action === 'NEW_TAB') {
-    if (overlay) { overlay.textContent = '+'; overlay.className = 'mockup-overlay show'; }
-    setTimeout(() => { if (overlay) overlay.className = 'mockup-overlay'; }, 1500);
-  } else if (action === 'CLOSE_TAB') {
-    if (overlay) { overlay.textContent = '✕'; overlay.className = 'mockup-overlay show'; }
-    setTimeout(() => { if (overlay) overlay.className = 'mockup-overlay'; }, 700);
-  } else if (action === 'NONE') {
-    if (noneEl) noneEl.style.display = 'block';
-  }
+  playGesture(explorerPose, explorerDir);
 }
 
 function updateExplorer() {
@@ -1033,6 +952,9 @@ function updateExplorer() {
 }
 
 (function initExplorer() {
+  const mascotCanvas = document.getElementById('mascotCanvas');
+  if (mascotCanvas) initMascot(mascotCanvas);
+
   chrome.storage.local.get(['gestureMap'], (result) => {
     explorerMap = result.gestureMap || {};
     updateExplorer();
