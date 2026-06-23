@@ -113,7 +113,7 @@ function setAllMirrorX(value, save = false) {
   if (save) chrome.storage.local.set({ cursorMirrorX: value });
 }
 
-chrome.storage.local.get(['gestureMap', 'cursorZone', 'cursorMirrorX', 'cursorTimings', 'achievements', 'scrollAmount', 'advancedClickTargets', 'poseChangeScroll'], (result) => {
+chrome.storage.local.get(['gestureMap', 'cursorZone', 'cursorMirrorX', 'cursorTimings', 'achievements', 'scrollAmount', 'advancedClickTargets', 'poseChangeScroll', 'overlayAvatar'], (result) => {
   applyGestureMap(result.gestureMap || defaults);
   applyCursorZone(result.cursorZone ?? { cx: 0.5, cy: 0.5, w: 0.6, h: 0.6 });
   setAllMirrorX(result.cursorMirrorX ?? false);
@@ -124,6 +124,8 @@ chrome.storage.local.get(['gestureMap', 'cursorZone', 'cursorMirrorX', 'cursorTi
   if (advEl) advEl.checked = result.advancedClickTargets ?? false;
   const pcsEl = document.getElementById('poseChangeScroll');
   if (pcsEl) pcsEl.checked = result.poseChangeScroll ?? false;
+  const oavEl = document.getElementById('overlayAvatar');
+  if (oavEl) oavEl.checked = result.overlayAvatar ?? true;
 });
 
 function applyScrollAmount(val) {
@@ -147,6 +149,10 @@ if (scrollSlider) {
 
 document.getElementById('poseChangeScroll')?.addEventListener('change', (e) => {
   chrome.storage.local.set({ poseChangeScroll: e.target.checked });
+});
+
+document.getElementById('overlayAvatar')?.addEventListener('change', (e) => {
+  chrome.storage.local.set({ overlayAvatar: e.target.checked });
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {

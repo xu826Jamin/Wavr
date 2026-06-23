@@ -305,6 +305,8 @@ function processFrame() {
           chrome.runtime.sendMessage({
             type: 'GESTURE_DISPLAY',
             label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
+            pose: POSE_PREFIX[firePose].slice(0, -1),                 // avatar reaction-confirmation
+            dir: gesture.toLowerCase().replace('swipe_', ''),
           });
         }
       }
@@ -382,6 +384,8 @@ function processFrame() {
       chrome.runtime.sendMessage({
         type: 'GESTURE_DISPLAY',
         label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
+        pose: POSE_PREFIX[firePose].slice(0, -1),                     // avatar reaction-confirmation
+        dir: gesture.toLowerCase().replace('swipe_', ''),
       });
       debug('gesture', gesture, '->', action);
     }

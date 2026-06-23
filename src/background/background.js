@@ -322,7 +322,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'GESTURE_DISPLAY') {
-    routeToOverlayTab({ type: 'GESTURE_DISPLAY', label: message.label });
+    routeToOverlayTab({ type: 'GESTURE_DISPLAY', label: message.label, pose: message.pose, dir: message.dir });
     return false;
   }
 

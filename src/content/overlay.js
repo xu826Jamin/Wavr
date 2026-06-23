@@ -1,3 +1,5 @@
+import { Avatar } from '../popup/avatar.js';
+
 (function () {
   'use strict';
   if (window.__wavrLoaded) return;
@@ -274,6 +276,31 @@
       user-select: none;
       text-shadow: 0 1px 4px rgba(0,0,0,0.9);
     }
+    .avatar-react {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      width: 64px;
+      height: 48px;
+      border-radius: 10px;
+      background: rgba(8,8,10,0.55);
+      box-shadow: 0 0 0 1px rgba(74,222,128,0.28), 0 4px 14px rgba(0,0,0,0.45);
+      backdrop-filter: blur(3px);
+      opacity: 0;
+      transform: translateY(6px) scale(0.92);
+      transition: opacity 0.22s cubic-bezier(0.4,0,0.2,1), transform 0.28s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .avatar-react.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    .avatar-react canvas { display: block; width: 100%; height: 100%; }
+    @media (prefers-reduced-motion: reduce) {
+      .avatar-react { transition: opacity 0.2s linear; transform: none; }
+      .avatar-react.show { transform: none; }
+    }
   `;
 
   let host = null;
@@ -283,6 +310,10 @@
   let canvasCtx = null;
   let stream = null;
   let gestureBar = null;
+  let reactAvatar = null;        // overlay reaction-confirmation avatar (mirrors detected pose+swipe)
+  let reactAvatarWrap = null;
+  let reactAvatarTimer = null;
+  let overlayAvatarEnabled = true;
   let gestureTimer = null;
   let glowTimer = null;
   let isDragging = false;
@@ -613,7 +644,19 @@
     coachHandSince = 0;
     if (coachDismissed) coachHintEl.style.opacity = '0';
 
-    cameraArea.append(placeholder, videoEl, canvasEl, camWatermark, coachHintEl);
+    // Reaction-confirmation avatar (bottom-left of the feed): hidden until a gesture fires, then it
+    // pops the matching pose + swipe and fades out. Lightweight; reuses the shared Avatar renderer.
+    reactAvatarWrap = document.createElement('div');
+    reactAvatarWrap.className = 'avatar-react';
+    const reactCanvas = document.createElement('canvas');
+    reactAvatarWrap.appendChild(reactCanvas);
+
+    cameraArea.append(placeholder, videoEl, canvasEl, camWatermark, coachHintEl, reactAvatarWrap);
+    if (overlayAvatarEnabled) {
+      try { reactAvatar = new Avatar(reactCanvas, { interactive: false, idle: false, life: false }); } catch (e) { reactAvatar = null; }
+    } else {
+      reactAvatarWrap.style.display = 'none';
+    }
 
     // Gesture bar
     gestureBar = document.createElement('div');
@@ -827,6 +870,9 @@
     stopCamera();
     clearTimeout(gestureTimer);
     clearTimeout(glowTimer);
+    clearTimeout(reactAvatarTimer);
+    if (reactAvatar) { try { reactAvatar.destroy(); } catch (e) {} reactAvatar = null; }
+    reactAvatarWrap = null;
     latestFrameImg = null;
     camPlaceholder = null;
     liveBadgeAdded = false;
@@ -974,6 +1020,25 @@
     }
   }
 
+  // Show the reaction avatar: pop the matching pose + swipe, then fade out.
+  function showReactAvatar(pose, dir) {
+    if (!overlayAvatarEnabled || !reactAvatar || !reactAvatarWrap) return;
+    reactAvatar.setPose(pose);
+    reactAvatar.play(pose, dir);
+    reactAvatarWrap.classList.add('show');
+    clearTimeout(reactAvatarTimer);
+    reactAvatarTimer = setTimeout(() => { if (reactAvatarWrap) reactAvatarWrap.classList.remove('show'); }, 1400);
+  }
+
+  function applyOverlayAvatar() {
+    if (!reactAvatarWrap) return;
+    reactAvatarWrap.style.display = overlayAvatarEnabled ? '' : 'none';
+    if (overlayAvatarEnabled && !reactAvatar) {
+      const c = reactAvatarWrap.querySelector('canvas');
+      if (c) { try { reactAvatar = new Avatar(c, { interactive: false, idle: false, life: false }); } catch (e) {} }
+    }
+  }
+
   function handleMessage(message) {
     if (message.type === 'VIDEO_FRAME') {
       const img = new Image();
@@ -1004,7 +1069,10 @@
         camPlaceholder.style.display = '';
       }
     }
-    if (message.type === 'GESTURE_DISPLAY')   showGesture(message.label);
+    if (message.type === 'GESTURE_DISPLAY') {
+      showGesture(message.label);
+      if (message.pose && message.dir) showReactAvatar(message.pose, message.dir);
+    }
     if (message.type === 'MIRROR_SUGGEST')    showMirrorSuggestion();
     if (message.type === 'SCROLL_NOOP') {
       if (!gestureBar) return;
@@ -1032,13 +1100,15 @@
   }
   chrome.runtime.onMessage.addListener(handleMessage);
 
-  chrome.storage.local.get('advancedClickTargets', (r) => {
+  chrome.storage.local.get(['advancedClickTargets', 'overlayAvatar'], (r) => {
     advancedClickTargets = r.advancedClickTargets ?? false;
+    overlayAvatarEnabled = r.overlayAvatar ?? true;
+    applyOverlayAvatar();
   });
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.advancedClickTargets != null) {
-      advancedClickTargets = changes.advancedClickTargets.newValue;
-    }
+    if (area !== 'local') return;
+    if (changes.advancedClickTargets != null) advancedClickTargets = changes.advancedClickTargets.newValue;
+    if (changes.overlayAvatar != null) { overlayAvatarEnabled = changes.overlayAvatar.newValue ?? true; applyOverlayAvatar(); }
   });
 
   chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {

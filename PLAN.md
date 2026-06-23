@@ -146,12 +146,25 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
 - **Gate:** ⏳ user confirms live (hero waves on load/CTA + is alive; none-combo shrugs; achievement
   celebrate; smooth scroll/perf with the shared ticker; nothing cluttered).
 
-## Phase 7 — Overlay / website webcam PiP integration
-- 7.1 Add a small avatar to the on-page **overlay** (shadow-DOM isolated, injected on every page).
-  **Decision:** *reaction-confirmation* (mirrors the detected pose + swipe when a gesture fires —
-  lighter, purposeful) **vs** *persistent mini-mascot*. Recommend reaction-confirmation, toggleable.
-- 7.2 Must be lightweight, not fight the camera feed, respect existing PiP layout/drag.
-- **Gate:** works on real pages; no jank; doesn't clobber the camera relay.
+## Phase 7 — Overlay / website webcam PiP integration  ⏳ BUILT, awaiting live confirm (2026-06-23)
+- 7.1 ✅ **DONE — reaction-confirmation** (the recommended, lighter option). A small avatar sits in
+  the bottom-right of the on-page camera widget, hidden until a gesture fires, then **pops the matching
+  pose + swipe** (open/closed/pointing/victory × up/down/left/right) on a dark pill and fades out.
+  Reuses the shared `Avatar` (`interactive:false, idle:false, life:false` → zero CPU between
+  reactions). Legibility at 64×48 verified via `avatar-assets/capture/overlay_size.cjs`
+  (`overlay_size.png`: swipe direction + streaks read clearly).
+- 7.2 ✅ **DONE — lightweight & non-intrusive.** Bundled into the content script (overlay 24.6→34.3 kB
+  gz 10.75). Doesn't touch the camera relay/canvas or drag. **Toggleable**: storage `overlayAvatar`
+  (default true) + a "Mascot confirmation" toggle in Settings; overlay self-heals via
+  `applyOverlayAvatar()` and tears the avatar down in `hideWidget`.
+- **Wiring:** offscreen adds `pose`+`dir` to both swipe `GESTURE_DISPLAY` messages
+  (`POSE_PREFIX.slice(0,-1)` + `gesture` → dir); background forwards them; overlay `showReactAvatar`
+  plays on receipt. manifest gains `web_accessible_resources` for `assets/avatar/*` (content scripts
+  can't load extension images otherwise). Content-script ESM `import` is fine — Vite bundles it to a
+  classic IIFE (verified: no leftover import in dist). Build clean.
+- **New storage key:** `overlayAvatar` (boolean, default true) — fold into CLAUDE.md at phase end.
+- **Gate:** ⏳ user confirms live on real pages (avatar pops the right pose+dir on each gesture, reads
+  well, no jank, doesn't fight the feed; toggle works).
 
 ## Phase 8 — Polish, perf, a11y, size, ship
 - Reduced-motion sweep, asset-size budget + lazy-load, off-screen pausing verified, CWS rezip,
@@ -273,3 +286,9 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
   (+`REACT_DUR`). Gated blink/lean on `life` so demos stay calm. Verified reactions faithfully
   (`verify_react.cjs`). Deferred section-intro/setup-step/first-run avatars (anti-clutter). Build
   clean. **Next: user confirms 3–6 live; then Phase 7 (overlay PiP avatar).**
+- 2026-06-23: **Phase 7 BUILT (0 cr).** Overlay reaction-confirmation avatar (bottom-right of the
+  on-page camera widget) pops the detected pose+swipe and fades out. offscreen→background→overlay now
+  carry `pose`+`dir`; manifest gains `web_accessible_resources` for `assets/avatar/*`; `Avatar`
+  imported into the content script (Vite bundles to classic IIFE). Toggle `overlayAvatar` (default on)
+  + Settings control. Legibility at 64×48 verified (`overlay_size.cjs`). Build clean. **Next: user
+  confirms 3–7 live; then Phase 8 (polish/perf/a11y/ship).**
