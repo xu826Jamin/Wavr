@@ -1,6 +1,7 @@
 import { createIcons, Camera, Crosshair, Move, Star, Info, ExternalLink } from 'lucide';
 import { initScrollReveal } from './scrollReveal.js';
-import { initMascot, playGesture } from './mascot.js';
+import { Avatar } from './avatar.js';
+import { initZoneDemos } from './zoneDemos.js';
 
 const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogijjildgiiikkibdmekhpo';
 
@@ -919,6 +920,7 @@ let explorerPose = 'open';
 let explorerDir  = 'up';
 let explorerMap  = {};
 let explorerDebounce = null;
+let explorerAvatar = null;
 
 function getExplorerAction() {
   const key = `${explorerPose}_swipe_${explorerDir}`;
@@ -935,10 +937,13 @@ function showExplorerBadge(text) {
 }
 
 function runExplorerAnimation(action) {
+  // The old centered "No action mapped" label sat on top of the avatar in low contrast.
+  // The action (incl. "No action mapped") is already shown below the frame and in the badge,
+  // so keep this hidden. (A proper avatar "shrug" reaction for the none-state is planned.)
   const noneEl = document.getElementById('explorerNoneLabel');
-  if (noneEl) noneEl.style.display = action === 'NONE' ? 'block' : 'none';
+  if (noneEl) noneEl.style.display = 'none';
   showExplorerBadge(EXPLORER_ACTION_LABELS[action] || action);
-  playGesture(explorerPose, explorerDir);
+  explorerAvatar?.play(explorerPose, explorerDir);
 }
 
 function updateExplorer() {
@@ -953,7 +958,7 @@ function updateExplorer() {
 
 (function initExplorer() {
   const mascotCanvas = document.getElementById('mascotCanvas');
-  if (mascotCanvas) initMascot(mascotCanvas);
+  if (mascotCanvas) explorerAvatar = new Avatar(mascotCanvas, { interactive: true });
 
   chrome.storage.local.get(['gestureMap'], (result) => {
     explorerMap = result.gestureMap || {};
@@ -991,4 +996,7 @@ function updateExplorer() {
   const initUp = document.querySelector('.dpad-btn[data-dir="up"]');
   if (initUp) initUp.classList.add('active');
 })();
+
+// Phase 3 concept visualizers (neutral zone + cursor zone), avatar-driven.
+initZoneDemos();
 

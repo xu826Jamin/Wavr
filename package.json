@@ -10,8 +10,7 @@
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.0",
     "lucide": "^1.16.0",
-    "motion": "^12.38.0",
-    "three": "^0.184.0"
+    "motion": "^12.38.0"
   },
   "devDependencies": {
     "eslint": "^10.4.0",

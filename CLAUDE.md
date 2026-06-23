@@ -10,6 +10,8 @@
 
 **Build:** Always run `npm run build` after any code change.
 
+**Push:** After every commit, push to `https://github.com/xu826Jamin/Wavr` (`git push origin main`).
+
 ## Notes
 - Consumer diagnosis summary saved in [CONSUMER_DIAGNOSIS_2026-06-04.md](CONSUMER_DIAGNOSIS_2026-06-04.md).
 - Prior usability plan archived at [plan_archive/PLAN_2026-06-04.md](plan_archive/PLAN_2026-06-04.md).

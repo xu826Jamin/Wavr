@@ -15,6 +15,9 @@ dist-ssr
 # Release artifacts
 *.zip
 
+# Avatar pipeline scratch (regenerable PNG outputs; keep the .cjs scripts)
+avatar-assets/**/*.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
