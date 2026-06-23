@@ -40,6 +40,9 @@ Zip `dist/*` for Chrome Web Store upload. Built with `vite-plugin-web-extension`
 | `src/popup/options.html/.js` | Advanced settings page (closed_swipe_* mappings). Opened via `chrome.tabs.create` not `openOptionsPage`. |
 | `src/popup/heroCanvas.js` | Canvas particle background for the hero section. 55 particles, radial vignette, mouse repulsion. Called from popup.js. |
 | `src/popup/scrollReveal.js` | IntersectionObserver scroll-reveal. Queries `.reveal` elements, adds `.revealed` class on intersection, applies stagger via `data-reveal-i`. Called from popup.js. |
+| `src/popup/avatar.js` | **Reusable 2D `Avatar` class** — the masked-ninja mascot. One static body + a shared forearm + a swappable hand sprite; `play(pose,dir)` swipes, `react('wave'/'nod'/'shrug'/'celebrate')`, idle life (blink/glance/hover-lean), `setArm/setPose/setTransform` for demos. See "Avatar / mascot system" below. |
+| `src/popup/zoneDemos.js` | Avatar-driven neutral-zone + cursor-zone concept demos (`initZoneDemos()`). Uses Avatar `onFrame`/`onAfterDraw` hooks. |
+| `src/popup/dosDonts.js` | Avatar-driven Dos & Don'ts ✓/✗ scenes (`initDosDonts()`) in `#tutorial`: Distance, Framing, Reset, Lighting. Composed from the rig via `transform`. |
 
 ## Gesture system
 
@@ -73,6 +76,7 @@ victory_swipe_up/down/left/right
 | `advancedClickTargets` | boolean | Allow clicks on any element in cursor mode (default false) |
 | `poseChangeScroll` | boolean | Open↔Fist pose transition fires scroll without swipe (default false) |
 | `mirrorSuggestionShown` | boolean | One-time mirror-X suggestion already shown (never resets) |
+| `overlayAvatar` | boolean | Show the reaction-confirmation mascot in the on-page camera widget (default true). Toggle: "Mascot confirmation" in Settings |
 
 ## Key constants to update before shipping
 
@@ -82,7 +86,8 @@ const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogi
 ```
 Extension ID: `mekfjddabogijjildgiiikkibdmekhpo`.
 
-Also update `v1.0.0` in the popup.html footer when bumping versions.
+When bumping versions, update `manifest.json` `version` **and** both `popup.html` labels (the
+`.footer-version` span and the `#intro` `.section-eyebrow`). Current: **v2.2.0**.
 
 ## UI structure (popup.html)
 
@@ -133,6 +138,7 @@ site-footer (fixed, "Made with ♥ by Wavr · v1.0.0")
 - `alarms` — `keepAlive` alarm (every 15s while enabled) keeps the MV3 service worker + offscreen gesture-detection doc alive and re-arms them after a worker restart
 - `camera` (optional) — requested at runtime via `getUserMedia`
 - `host_permissions: <all_urls>` — inject overlay on any page
+- `web_accessible_resources: assets/avatar/*` (matches `<all_urls>`) — lets the injected overlay content script load the mascot sprites for the on-page reaction-confirmation avatar
 
 ### CWS permission justifications (paste into Privacy practices → permission justifications)
 - **alarms** — Wavr uses a single periodic `chrome.alarms` alarm ("keepAlive", ~15s) to keep its background service worker and the offscreen document that runs on-device webcam gesture detection alive while the user has gesture control turned on. Chrome MV3 terminates idle service workers, which would stop gesture detection mid-use; the alarm lets Wavr check the detection document is still running and recreate it if the worker was restarted, so the user doesn't have to manually re-enable Wavr. The alarm is created only when the user turns Wavr on and cleared when they turn it off. No data is collected or transmitted.
@@ -314,6 +320,57 @@ What it's missing vs. the target:
 - Staggered entrance animations (currently one flat `panelFadeIn`)
 - Deep `#080808` base vs current `#0f0f0f` (minor, but push deeper)
 - Card `box-shadow` depth (currently zero shadow)
+
+---
+
+## Avatar / mascot system
+
+A premium, masked-ninja mascot built entirely in code (0 Higgsfield credits in the end). Single-body
+puppet: one static body sprite + ONE shared forearm + a swappable hand (`open`/`closed`/`pointing`/
+`victory`). Assets `src/assets/avatar/*.webp` (~76 KB total), copied to `dist/assets/avatar/` by the
+`copyAssets` Vite plugin and exposed to content scripts via `web_accessible_resources` (manifest).
+
+**`src/popup/avatar.js` — the `Avatar` class** (geometry in 1024×768 asset space, scaled to a 4:3 canvas):
+- **Rig:** body + fill-only upper-arm capsule (`#41474f`, shoulder→elbow, drawn only while moving) +
+  forearm + hand. The forearm+hand **translate AND rotate about the elbow** (`AP=[844,502]`) — rotation
+  is what makes motion read as articulated rather than floaty sliding.
+- **Swipe** (`play(pose,dir)`): `swipePath` = anticipation pull-back → flick out with `easeOutBack`
+  overshoot → `easeInOut` settle; `SWIPE_PX=168`; a `SWIPE_LEAD` elbow flick; green motion streaks
+  trail the actual hand (`_handPos`). Directions read clearly.
+- **Reactions** (`react(kind)`, per-kind `REACT_DUR`): `wave` (pivot at elbow), `nod` (body dip),
+  `shrug` (hand out + head tilt — used for the explorer NONE state), `celebrate` (high raise + hops —
+  fired on achievement unlock).
+- **Idle life** (gated on `life`, default = `interactive`): blink (skin lids over the measured pupils
+  L≈[476,329]/R≈[588,325], skin `rgb(247,201,170)`), occasional glance, hover-lean, periodic wave.
+  Demos (non-interactive) never blink/lean.
+- **`transform`/`setTransform`** (scale/dx/dy/rot/origin): whole-avatar transform — used by dos/don'ts
+  (too-close = scale, clipped = offset) and the life lean.
+- **Demo hooks:** `setArm(ox,oy)` / `setPose` / `onFrame(now,av)` / `onAfterDraw(ctx,metrics)`.
+- **Perf (pooled):** ONE shared `requestAnimationFrame` ticker drives every visible instance
+  (`_active` Set + `_tickAll`/`_wake`); shared image cache; per-instance `IntersectionObserver`
+  off-screen pause; DPR capped at 2. Under `prefers-reduced-motion` everything holds static and the
+  loop stops after one paint (re-wakes via `_start` on any state change).
+
+**Placements:** explorer (`mascotCanvas`, interactive), hero (`heroAvatarCanvas`, waves on load/CTA,
+celebrates on achievement), neutral/cursor zone demos, `#tutorial` dos/don'ts, and the on-page overlay
+**reaction-confirmation** avatar (bottom-right of the camera widget — mirrors the detected pose+swipe;
+offscreen sends `pose`+`dir` on `GESTURE_DISPLAY`, background forwards, overlay plays it; toggle
+`overlayAvatar`).
+
+### Verifying avatar motion (IMPORTANT — do this, not canvas-replica renders)
+Motion quality MUST be checked by running the **real** `avatar.js` in a real browser, not by Node
+`@napi-rs/canvas` re-renders of the draw math (those are circular — they only prove the code matches
+itself, and once led to shipping "verified" animations that were not passable). Tooling lives in
+`avatar-assets/capture/` (Playwright + `@napi-rs/canvas`, both devDeps):
+- `harness.html` loads the real `src/popup/avatar.js` in headless Chromium (chrome.* shimmed).
+- `node avatar-assets/capture/capture.cjs <tag>` → filmstrips, onion-skins, large key-frame montages.
+- `record.cjs` → `motion.webm` (real-motion clip). `rm_check.cjs` → asserts reduced-motion is static.
+- `overlay_size.cjs` → checks legibility at the 64×48 overlay size.
+PNG/webm outputs are gitignored; the `.cjs`/`.html` tooling is committed.
+
+**Asset pipeline:** `avatar-assets/*.cjs` (register → flood-cut → consistent-forearm graft →
+finalize; `rig_assets.cjs` skin→glove luma gradient). New poses reuse the shared forearm — graft one
+new hand sprite at the common wrist; no new bodies/forearms.
 
 ---
 

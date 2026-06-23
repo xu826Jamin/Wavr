@@ -303,8 +303,9 @@ export class Avatar {
       this.onAfterDraw(ctx, { s, ox, oy, rot, cssW, cssH, now, handX: hand.x, handY: hand.y });
     }
 
-    // leave the shared ticker if nothing is animating (saves CPU)
-    if (!this.idle && !this.life && !moving && !showLines && !calm && !this._armManual && !this.onFrame) {
+    // leave the shared ticker when nothing is animating (saves CPU). Under reduced motion there is
+    // never any animation, so paint one frame and stop — any state change re-wakes via _start().
+    if (calm || (!this.idle && !this.life && !moving && !showLines && !this._armManual && !this.onFrame)) {
       this._running = false; _active.delete(this);
     }
   }
