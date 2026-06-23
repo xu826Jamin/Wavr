@@ -334,6 +334,54 @@
     }
 
     /* ── TUTORIAL ── */
+    /* avatar-driven dos/don'ts scenes */
+    .dd-demos {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .dd-demo {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .dd-demo-title {
+      font: 600 11px/1 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 12px;
+    }
+    .dd-demo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .dd-scene {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #252525;
+      background: #080808;
+    }
+    .dd-scene.good { border-color: rgba(74,222,128,0.32); }
+    .dd-scene.bad  { border-color: rgba(248,113,113,0.32); }
+    .dd-scene canvas { display: block; width: 100%; aspect-ratio: 4 / 3; }
+    .dd-scene-badge {
+      position: absolute; top: 8px; left: 8px;
+      width: 22px; height: 22px; border-radius: 50%;
+      display: grid; place-items: center;
+      font: 700 13px/1 system-ui, sans-serif;
+    }
+    .dd-scene.good .dd-scene-badge { background: rgba(74,222,128,0.9); color: #06210f; }
+    .dd-scene.bad  .dd-scene-badge { background: rgba(248,113,113,0.9); color: #2a0606; }
+    .dd-scene-cap {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      padding: 14px 8px 6px;
+      font: 500 11px/1.2 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+      color: #ddd;
+      background: linear-gradient(transparent, rgba(0,0,0,0.78));
+    }
+    @media (max-width: 720px) { .dd-demos { grid-template-columns: 1fr; } }
+
     .dd-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -2795,6 +2843,37 @@
         <div class="section-eyebrow">Learn</div>
         <h2 class="section-heading reveal" data-reveal-i="0">Dos &amp; Don'ts</h2>
         <p class="section-sub">Good lighting, framing, and steady gestures make detection fast and reliable.</p>
+
+        <div class="dd-demos reveal" data-reveal-i="0">
+          <div class="dd-demo">
+            <div class="dd-demo-title">Distance</div>
+            <div class="dd-demo-row">
+              <div class="dd-scene good"><canvas id="dd_distanceGood"></canvas><span class="dd-scene-badge">✓</span><span class="dd-scene-cap">Arm's length</span></div>
+              <div class="dd-scene bad"><canvas id="dd_distanceBad"></canvas><span class="dd-scene-badge">✗</span><span class="dd-scene-cap">Too close</span></div>
+            </div>
+          </div>
+          <div class="dd-demo">
+            <div class="dd-demo-title">Framing</div>
+            <div class="dd-demo-row">
+              <div class="dd-scene good"><canvas id="dd_framingGood"></canvas><span class="dd-scene-badge">✓</span><span class="dd-scene-cap">Hand in frame</span></div>
+              <div class="dd-scene bad"><canvas id="dd_framingBad"></canvas><span class="dd-scene-badge">✗</span><span class="dd-scene-cap">Clipped at edge</span></div>
+            </div>
+          </div>
+          <div class="dd-demo">
+            <div class="dd-demo-title">Reset between gestures</div>
+            <div class="dd-demo-row">
+              <div class="dd-scene good"><canvas id="dd_resetGood"></canvas><span class="dd-scene-badge">✓</span><span class="dd-scene-cap">Return to neutral</span></div>
+              <div class="dd-scene bad"><canvas id="dd_resetBad"></canvas><span class="dd-scene-badge">✗</span><span class="dd-scene-cap">Holding mid-swipe</span></div>
+            </div>
+          </div>
+          <div class="dd-demo">
+            <div class="dd-demo-title">Lighting</div>
+            <div class="dd-demo-row">
+              <div class="dd-scene good"><canvas id="dd_lightingGood"></canvas><span class="dd-scene-badge">✓</span><span class="dd-scene-cap">Even front light</span></div>
+              <div class="dd-scene bad"><canvas id="dd_lightingBad"></canvas><span class="dd-scene-badge">✗</span><span class="dd-scene-cap">Backlit / too dark</span></div>
+            </div>
+          </div>
+        </div>
 
         <div class="dd-grid">
           <div class="dd-card do">

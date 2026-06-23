@@ -85,15 +85,26 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
   preserved, zones read clearly). Build clean.
 - **Gate:** ⏳ user to confirm in the live extension (both demos animate, on-brand, no Higgsfield).
 
-## Phase 4 — Dos & Don'ts, shown by the avatar
-- 4.1 Define pairs (grounded in the consumer fixes): arm's-length vs **too close**; palm-to-camera
-  vs **angled**; hand-in-frame vs **clipped at edge**; deliberate vs **flailing**; good light vs
-  **backlit**; return-to-neutral vs **holding mid-swipe**.
-- 4.2 Represent each as a paired mini-scene — ✓ green / ✗ red — mostly by **composing the existing
-  avatar** (scale = too close, offset/clip = out of frame, tilt = angled, vignette = bad light) +
-  badges. Generate at most a couple of expression/hand variants if needed (budget).
-- 4.3 A "Tips" / dos-and-don'ts panel in the popup (and a compact version for first-run).
-- **Gate:** user approves the pair list; panel is clear; ≤~1 cr spent.
+## Phase 4 — Dos & Don'ts, shown by the avatar  ⏳ BUILT, awaiting live confirm (2026-06-23)
+- 4.1 ✅ **DONE** — Shipped **4 faithful pairs** (0 cr, all composed from the existing rig):
+  **Distance** (arm's length ↔ too close), **Framing** (in frame ↔ clipped at edge), **Reset**
+  (return to neutral ↔ holding mid-swipe), **Lighting** (even ↔ backlit/dark). *Dropped two from the
+  original list:* **palm-vs-angled** (whole-body tilt/squash didn't read as a palm angling — no
+  faithful 0-cr composition) and **deliberate-vs-flailing** (overlaps Reset; rapid jitter looked like
+  a render bug). Offer to add later if wanted.
+- 4.2 ✅ **DONE** — Each pair = side-by-side ✓ green / ✗ red **avatar scenes**, composed via a new
+  reusable `Avatar` **transform** (scale=too close, dx offset=clipped) + canvas overlays
+  (neutral ring reused from Phase 3, red "stuck" ring+arrow, backlight+vignette). **0 credits.**
+- 4.3 ✅ **DONE (popup)** — Visual scenes added to the existing **`#tutorial` section** above the
+  text reference lists. *(Compact first-run version deferred — first-run wizard polish belongs with
+  Phase 6.)*
+- **Implementation:** `avatar.js` gained `transform`/`setTransform()` (scale/dx/dy/rot/origin,
+  applied around the body draw). New `src/popup/dosDonts.js` (`initDosDonts()`, 8 scene canvases,
+  prefers-reduced-motion holds a frame). `.dd-demos/.dd-demo/.dd-scene*` CSS + markup in popup.html;
+  wired from popup.js. Verified faithfully via `avatar-assets/verify_dosdonts.cjs` →
+  `verify_dosdonts.png` (identity preserved, every contrast reads). Build clean.
+- **Gate:** ⏳ user confirms live (4 pairs animate, on-brand, contrasts clear); approve dropping the
+  two pairs above (or ask to add them).
 
 ## Phase 5 — Interactivity & idle life
 - 5.1 **Click** the avatar → reaction (wave / cycle a pose / small easter egg). **Hover** → subtle
@@ -200,3 +211,11 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
   popup.js. Hand position measured (`measure_hands.cjs`: centroid ≈ [800,290] asset px). Faithful
   render check (`verify_zones.cjs` → `verify_zones.png`) looks correct. Build clean. **Next: user
   confirms live; then Phase 4 (dos & don'ts).**
+- 2026-06-23: **Committed the foundation+zones** (commit `b550187`, pushed): avatar.js, zoneDemos.js,
+  deleted mascot.js, 6 webp assets, pipeline `.cjs`; removed unused `three` dep; gitignored
+  `avatar-assets/**/*.png` (45 MB scratch kept out of git). **Phase 4 BUILT (0 cr).** `Avatar` got a
+  reusable whole-avatar `transform` (scale/dx/dy/rot/origin) + `setTransform()`; new `dosDonts.js`
+  renders 4 ✓/✗ pairs (Distance/Framing/Reset/Lighting) into the `#tutorial` section. Dropped the
+  palm-vs-angled and deliberate-vs-flailing pairs (no faithful 0-cr composition / redundant). Faithful
+  check `verify_dosdonts.cjs` → `verify_dosdonts.png` confirms identity + clear contrasts. Build clean.
+  **Next: user confirms Phases 3 & 4 live; then Phase 5 (interactivity/idle life).**

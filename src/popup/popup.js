@@ -2,6 +2,7 @@ import { createIcons, Camera, Crosshair, Move, Star, Info, ExternalLink } from '
 import { initScrollReveal } from './scrollReveal.js';
 import { Avatar } from './avatar.js';
 import { initZoneDemos } from './zoneDemos.js';
+import { initDosDonts } from './dosDonts.js';
 
 const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogijjildgiiikkibdmekhpo';
 
@@ -999,4 +1000,7 @@ function updateExplorer() {
 
 // Phase 3 concept visualizers (neutral zone + cursor zone), avatar-driven.
 initZoneDemos();
+
+// Phase 4 dos & don'ts — avatar-driven ✓/✗ scenes.
+initDosDonts();
 

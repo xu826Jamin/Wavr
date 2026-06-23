@@ -57,6 +57,7 @@ export class Avatar {
     this.interactive = !!opts.interactive;
     this.onFrame = opts.onFrame || null;       // (now, avatar) — set pose/arm before drawing
     this.onAfterDraw = opts.onAfterDraw || null; // (ctx, metrics) — draw overlays on top
+    this.xform = opts.transform || null;       // {scale,dx,dy,rot,originX,originY} whole-avatar transform
     this._armManual = null;                    // {ox,oy} demo-driven arm; overrides swipe/react
     this.s = 1; this.cssW = 0; this.cssH = 0;
     this.t0 = performance.now();
@@ -98,6 +99,9 @@ export class Avatar {
   // Demo control: drive the hand directly (asset px offset from rest). Pass null to release.
   setArm(ox, oy) { this._armManual = (ox == null) ? null : { ox, oy }; this._start(); }
   setPose(pose) { if (ASSET['hand_' + pose]) this.pose = pose; this._start(); }
+  // Whole-avatar transform (compose dos/don'ts: scale=too close, dx/dy=offset out of frame, rot=lean).
+  // scale uniform; dx/dy as fractions of canvas; rot in rad; origin as fractions (default centre).
+  setTransform(xf) { this.xform = xf || null; this._start(); }
 
   destroy() {
     this._running = false;
@@ -160,6 +164,14 @@ export class Avatar {
     const breatheY = (this.idle && !calm) ? Math.sin(t * 1.1) * 2 : 0;
 
     ctx.save();
+    const xf = this.xform;
+    if (xf) {                                   // whole-avatar transform (scale/offset/rotate)
+      const oxp = (xf.originX ?? 0.5) * cssW, oyp = (xf.originY ?? 0.5) * cssH;
+      ctx.translate(oxp + (xf.dx || 0) * cssW, oyp + (xf.dy || 0) * cssH);
+      if (xf.rot) ctx.rotate(xf.rot);
+      const sc = xf.scale ?? 1; ctx.scale(sc, sc);
+      ctx.translate(-oxp, -oyp);
+    }
     ctx.translate(0, breatheY * s);
 
     this._draw(_img.base, 0, 0);
