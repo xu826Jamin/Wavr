@@ -106,12 +106,23 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
 - **Gate:** ⏳ user confirms live (4 pairs animate, on-brand, contrasts clear); approve dropping the
   two pairs above (or ask to add them).
 
-## Phase 5 — Interactivity & idle life
-- 5.1 **Click** the avatar → reaction (wave / cycle a pose / small easter egg). **Hover** → subtle
-  lean or eye-follow. Cursor-follow glance.
-- 5.2 **Idle behaviors:** blink, breathe, occasional glance, periodic wave — randomized, subtle.
-- 5.3 Respect `prefers-reduced-motion` (already wired); keep it tasteful, never distracting.
-- **Gate:** feels alive but not annoying; a11y respected.
+## Phase 5 — Interactivity & idle life  ⏳ BUILT, awaiting live confirm (2026-06-23)
+- 5.1 ✅ **DONE** — **Click** cycles reactions (wave → nod → wave; `_clickReact`). **Hover**
+  (pointerenter/leave) → subtle eased lean (rot −2°, scale 1.025, slight rise) via the life transform.
+- 5.2 ✅ **DONE** — **Blink** (skin-coloured upper lids descend over the measured pupils + a subtle
+  lash line; random 2.6–6.8 s, occasional double-blink), **breathe** (already), **occasional glance**
+  (gentle head lean L/R every 5–12 s), **periodic idle wave** (every ~13–22 s when idle). All
+  randomized + subtle.
+- 5.3 ✅ **DONE** — `prefers-reduced-motion` suppresses blink/glance/lean/idle-wave (holds static).
+- **Implementation:** all in `avatar.js` as a **life layer** gated on `opts.life ?? interactive`
+  (on for the explorer; off for demos so their transforms are untouched). `_updateLife()` owns
+  `this.xform` for life avatars only (skips when `onFrame` is set). Pupils measured from
+  `base_body.webp` (L≈[476,329], R≈[588,325]; skin `rgb(247,201,170)`) via `eye_grid/eye_probe3`.
+  Blink/lean verified faithfully: `avatar-assets/verify_life.cjs` + `verify_blink_face.cjs` →
+  `verify_life.png` / `verify_blink_face.png` (lids align to pupils, no bleed onto brows/mask).
+  Build clean.
+- **Gate:** ⏳ user confirms live (explorer blinks/glances/waves, click cycles wave↔nod, hover leans;
+  feels alive, not annoying; reduced-motion respected).
 
 ## Phase 6 — Avatar throughout the popup UI
 - 6.1 Placements: **hero** (idle, waves on load/CTA), section intros, **empty/none states**
@@ -219,3 +230,9 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
   palm-vs-angled and deliberate-vs-flailing pairs (no faithful 0-cr composition / redundant). Faithful
   check `verify_dosdonts.cjs` → `verify_dosdonts.png` confirms identity + clear contrasts. Build clean.
   **Next: user confirms Phases 3 & 4 live; then Phase 5 (interactivity/idle life).**
+- 2026-06-23: **Phase 5 BUILT (0 cr).** Added an idle-life layer to `avatar.js`: blink (measured
+  pupils + skin lid + lash line), occasional glance, hover-lean, click→wave/nod cycle, periodic idle
+  wave; all reduced-motion-gated and gated on `life` (interactive only, demos untouched). Measured the
+  face (`eye_grid.cjs`/`eye_probe3.cjs`), verified blink+lean faithfully (`verify_life.cjs`,
+  `verify_blink_face.cjs`). Build clean. **Next: user confirms 3/4/5 live; then Phase 6 (avatar
+  throughout the popup UI).**

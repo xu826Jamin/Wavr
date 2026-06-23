@@ -64,6 +64,17 @@ export class Avatar {
     this.swipeStart = -1e9; this.reactStart = -1e9; this.reactKind = null;
     this.visible = true; this._running = false;
 
+    // ── idle life (blink / glance / hover-lean / periodic wave) — on for interactive avatars ──
+    this.life = opts.life ?? this.interactive;
+    this._blinkP = 0; this._blinkStart = -1e9; this._blinkDur = 150;
+    this._nextBlink = this.t0 + 1400 + Math.random() * 3200;
+    this._lifeX = { rot: 0, scale: 1, dx: 0, dy: 0 };          // eased lean transform
+    this._hover = false;
+    this._glanceStart = -1e9; this._glanceDir = 1;
+    this._nextGlance = this.t0 + 4500 + Math.random() * 6000;
+    this._nextIdleWave = this.t0 + 12000 + Math.random() * 10000;
+    this._reactCycle = 0;
+
     this._resize();
     this._ro = new ResizeObserver(() => this._resize());
     this._ro.observe(canvas.parentElement || canvas);
@@ -75,8 +86,12 @@ export class Avatar {
 
     if (this.interactive) {
       canvas.style.cursor = 'pointer';
-      this._onClick = () => this.react('wave');
+      this._onClick = () => this._clickReact();
+      this._onEnter = () => { this._hover = true; this._start(); };
+      this._onLeave = () => { this._hover = false; this._start(); };
       canvas.addEventListener('click', this._onClick);
+      canvas.addEventListener('pointerenter', this._onEnter);
+      canvas.addEventListener('pointerleave', this._onLeave);
     }
 
     loadAssets();
@@ -103,10 +118,66 @@ export class Avatar {
   // scale uniform; dx/dy as fractions of canvas; rot in rad; origin as fractions (default centre).
   setTransform(xf) { this.xform = xf || null; this._start(); }
 
+  // Click cycles through small reactions; demos/non-interactive use react() directly.
+  _clickReact() { this.react(['wave', 'nod', 'wave'][this._reactCycle++ % 3]); }
+
   destroy() {
     this._running = false;
     this._ro?.disconnect(); this._io?.disconnect();
     if (this._onClick) this.canvas.removeEventListener('click', this._onClick);
+    if (this._onEnter) { this.canvas.removeEventListener('pointerenter', this._onEnter); this.canvas.removeEventListener('pointerleave', this._onLeave); }
+  }
+
+  // Idle life: schedule blinks, drive an eased lean (hover > glance), nod dips, and periodic waves.
+  // Owns this.xform for life avatars; demos (onFrame / static transform) are left untouched.
+  _updateLife(now) {
+    const calm = prefersReduce();
+    if (!calm && now >= this._nextBlink && now - this._blinkStart > this._blinkDur + 40) {
+      this._blinkStart = now;
+      this._blinkDur = 130 + Math.random() * 60;
+      this._nextBlink = (Math.random() < 0.16) ? now + 230 : now + 2600 + Math.random() * 4200; // sometimes double-blink
+    }
+    const bp = (now - this._blinkStart) / this._blinkDur;
+    this._blinkP = (!calm && bp >= 0 && bp <= 1) ? Math.sin(bp * Math.PI) : 0;   // 0 → 1 → 0
+
+    if (!this.life || this.onFrame) return;   // demos own their transform
+
+    let tRot = 0, tScale = 1, tDx = 0, tDy = 0;
+    if (!calm) {
+      if (this._hover) { tRot = -0.035; tScale = 1.025; tDy = -0.012; }
+      else if (now >= this._glanceStart && now <= this._glanceStart + 1400) {
+        const e = Math.sin((now - this._glanceStart) / 1400 * Math.PI);
+        tRot = this._glanceDir * 0.02 * e; tDx = this._glanceDir * 0.012 * e;
+      } else if (now >= this._nextGlance) {
+        this._glanceStart = now; this._glanceDir = Math.random() < 0.5 ? -1 : 1;
+        this._nextGlance = now + 5000 + Math.random() * 7000;
+      }
+      const r = (now - this.reactStart) / 700;                                    // nod = a brief downward dip
+      if (this.reactKind === 'nod' && r >= 0 && r <= 1) { const e = Math.sin(r * Math.PI); tDy += 0.03 * e; tScale *= 1 - 0.012 * e; }
+      if (this.idle && now >= this._nextIdleWave && now - this.reactStart > 2000 && now - this.swipeStart > 2000) {
+        this.react('wave'); this._nextIdleWave = now + 13000 + Math.random() * 9000;
+      }
+    }
+    const k = 0.12, L = this._lifeX;
+    L.rot += (tRot - L.rot) * k; L.scale += (tScale - L.scale) * k;
+    L.dx += (tDx - L.dx) * k; L.dy += (tDy - L.dy) * k;
+    this.xform = { rot: L.rot, scale: L.scale, dx: L.dx, dy: L.dy, originX: 0.5, originY: 0.62 };
+  }
+
+  // Upper-lid blink: skin-coloured lids descend over the pupils (asset space, ride the transform).
+  _drawBlink(p) {
+    if (p <= 0) return;
+    const { ctx, s } = this;
+    const eyes = [[450, 307, 50, 38], [562, 303, 48, 40]];   // [x,y,w,h] eye openings (asset px)
+    ctx.save();
+    for (const [x, y, w, h] of eyes) {
+      const lh = Math.max(2, p * h);
+      ctx.fillStyle = 'rgb(247,201,170)';
+      ctx.beginPath(); ctx.roundRect(x * s, y * s, w * s, lh * s, [0, 0, 7 * s, 7 * s]); ctx.fill();
+      ctx.strokeStyle = 'rgba(86,58,44,0.85)'; ctx.lineWidth = 2.2 * s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo((x + 2) * s, (y + lh) * s); ctx.lineTo((x + w - 2) * s, (y + lh) * s); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   _resize() {
@@ -132,6 +203,7 @@ export class Avatar {
     if (!_assetsLoaded) return;
 
     this.onFrame?.(now, this);   // demos set pose / arm offset for this frame
+    this._updateLife(now);       // blink + lean for life avatars (no-op for demos)
 
     const { ctx, s, cssW, cssH } = this;
     ctx.clearRect(0, 0, cssW, cssH);
@@ -183,6 +255,7 @@ export class Avatar {
     }
     this._draw(_img.fore, ox * s, oy * s);
     this._draw(_img['hand_' + this.pose] || _img.hand_open, ox * s, oy * s);
+    this._drawBlink(this._blinkP);                           // lids ride the transform (drawn on the face)
     ctx.restore();
 
     if (showLines) this._motionLines(u, this.dir);
@@ -194,7 +267,7 @@ export class Avatar {
     }
 
     // stop the loop if nothing is animating and idle is off (saves CPU)
-    if (!this.idle && !moving && !showLines && !calm && !this._armManual && !this.onFrame) this._running = false;
+    if (!this.idle && !this.life && !moving && !showLines && !calm && !this._armManual && !this.onFrame) this._running = false;
   };
 
   _draw(img, ox, oy) {
