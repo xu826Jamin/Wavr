@@ -124,12 +124,27 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
 - **Gate:** ⏳ user confirms live (explorer blinks/glances/waves, click cycles wave↔nod, hover leans;
   feels alive, not annoying; reduced-motion respected).
 
-## Phase 6 — Avatar throughout the popup UI
-- 6.1 Placements: **hero** (idle, waves on load/CTA), section intros, **empty/none states**
-  (shrug), **achievements** (thumbs-up/celebrate), **setup steps** (demonstrates each step's pose),
-  first-run wizard guide.
-- 6.2 Performance: pooled renderer / shared RAF; pause off-screen; cap DPR.
-- **Gate:** cohesive, not cluttered; smooth scroll/perf.
+## Phase 6 — Avatar throughout the popup UI  ⏳ BUILT, awaiting live confirm (2026-06-23)
+- 6.1 ✅ **DONE (focused subset)** — **Hero mascot** (`#heroAvatarCanvas` above the headline, green
+  glow; full idle life; **waves on load** ~650 ms and on the **CTA** click). **Empty/none state →
+  shrug**: explorer now does `react('shrug')` (hand opens outward + head tilt) when the combo maps to
+  `NONE`, instead of swiping — resolves the old 1.1 TODO. **Achievements → celebrate**: hero
+  `react('celebrate')` (happy hops + bigger waves) on a fresh unlock in `applyAchievements`.
+  *Deferred (anti-clutter):* per-section-intro avatars, setup-step pose demos (setup is the
+  chrome://extensions install flow — gestures would be incongruent), and a first-run-wizard guide
+  avatar. Easy to add if wanted.
+- 6.2 ✅ **DONE** — **Shared RAF ticker**: ONE `requestAnimationFrame` drives every visible Avatar
+  (`_active` Set + `_tickAll`/`_wake`; each `_tick` removes itself when off-screen or idle-complete;
+  loop goes fully idle when empty and restarts on `_start`). Off-screen pause + DPR cap already in
+  place; shared image cache already pooled. Scheduling validated headlessly (idle keeps ticking,
+  self-stop stops at limit, loop drains to idle with no leak, re-wake restarts).
+- **New reactions** (`avatar.js`): `shrug` + `celebrate` added to the arm section and life section;
+  per-kind durations via `REACT_DUR`; `react()` now sets `reactDur`. Verified faithfully
+  (`verify_react.cjs` → `verify_react.png`: arm stays connected via the fill capsule, transforms
+  subtle). **Blink/lean now gated on `life`** so the 8 dos/don'ts + 2 zone demos no longer blink
+  (didactic tiles stay calm). Build clean.
+- **Gate:** ⏳ user confirms live (hero waves on load/CTA + is alive; none-combo shrugs; achievement
+  celebrate; smooth scroll/perf with the shared ticker; nothing cluttered).
 
 ## Phase 7 — Overlay / website webcam PiP integration
 - 7.1 Add a small avatar to the on-page **overlay** (shadow-DOM isolated, injected on every page).
@@ -236,3 +251,9 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
   face (`eye_grid.cjs`/`eye_probe3.cjs`), verified blink+lean faithfully (`verify_life.cjs`,
   `verify_blink_face.cjs`). Build clean. **Next: user confirms 3/4/5 live; then Phase 6 (avatar
   throughout the popup UI).**
+- 2026-06-23: **Phase 6 BUILT (0 cr).** Refactored `avatar.js` to a **shared RAF ticker** (pooled,
+  6.2) — validated the scheduling headlessly. Added a **hero mascot** (waves on load/CTA), **none-
+  state shrug** (explorer), **achievement celebrate** (hero), and `shrug`/`celebrate` reactions
+  (+`REACT_DUR`). Gated blink/lean on `life` so demos stay calm. Verified reactions faithfully
+  (`verify_react.cjs`). Deferred section-intro/setup-step/first-run avatars (anti-clutter). Build
+  clean. **Next: user confirms 3–6 live; then Phase 7 (overlay PiP avatar).**

@@ -88,6 +88,7 @@ function applyAchievements(a) {
       void el.offsetWidth;
       el.classList.add('just-unlocked');
       el.addEventListener('animationend', () => el.classList.remove('just-unlocked'), { once: true });
+      if (typeof heroAvatar !== 'undefined') heroAvatar?.react('celebrate');   // mascot celebrates the unlock
     }
   }
   updateGestureCountUI(count);
@@ -944,7 +945,12 @@ function runExplorerAnimation(action) {
   const noneEl = document.getElementById('explorerNoneLabel');
   if (noneEl) noneEl.style.display = 'none';
   showExplorerBadge(EXPLORER_ACTION_LABELS[action] || action);
-  explorerAvatar?.play(explorerPose, explorerDir);
+  if (action === 'NONE') {                 // unmapped → the avatar shrugs instead of swiping
+    explorerAvatar?.setPose(explorerPose);
+    explorerAvatar?.react('shrug');
+  } else {
+    explorerAvatar?.play(explorerPose, explorerDir);
+  }
 }
 
 function updateExplorer() {
@@ -996,6 +1002,17 @@ function updateExplorer() {
 
   const initUp = document.querySelector('.dpad-btn[data-dir="up"]');
   if (initUp) initUp.classList.add('active');
+})();
+
+// Phase 6 hero mascot — greets on load, waves on the CTA, celebrates on achievement unlock.
+let heroAvatar = null;
+(function initHeroAvatar() {
+  const c = document.getElementById('heroAvatarCanvas');
+  if (!c) return;
+  heroAvatar = new Avatar(c, { interactive: true });
+  setTimeout(() => heroAvatar?.react('wave'), 650);   // greet shortly after the page settles
+  const cta = document.getElementById('heroCta');
+  if (cta) cta.addEventListener('click', () => heroAvatar?.react('wave'));
 })();
 
 // Phase 3 concept visualizers (neutral zone + cursor zone), avatar-driven.

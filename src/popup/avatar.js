@@ -12,6 +12,7 @@ const AW = 1024, AH = 768;
 const S = [772, 528], AP = [844, 502];   // shoulder socket + elbow (forearm is shared)
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const SWIPE_PX = 90, SWIPE_MS = 620, CAP_FILL = 82, REACT_MS = 1100;
+const REACT_DUR = { wave: 1100, nod: 700, shrug: 950, celebrate: 1500 };
 
 // Hand centroid in the 1024x768 asset space, as a fraction of the canvas. Measured from the hand
 // sprites (open/fist/pointing/victory all cluster near [800, 290]). Demos use this to anchor the
@@ -47,6 +48,19 @@ function loadAssets() {
   }
 }
 
+// ---- shared RAF ticker: ONE requestAnimationFrame drives every visible Avatar (pooled, Phase 6) ----
+const _active = new Set();
+let _rafId = 0;
+function _tickAll(now) {
+  _rafId = 0;
+  for (const a of _active) a._tick(now);   // deleting `a` from the Set mid-loop is safe in JS
+  if (_active.size) _rafId = requestAnimationFrame(_tickAll);
+}
+function _wake(a) {
+  _active.add(a);
+  if (!_rafId) _rafId = requestAnimationFrame(_tickAll);
+}
+
 export class Avatar {
   constructor(canvas, opts = {}) {
     this.canvas = canvas;
@@ -61,7 +75,7 @@ export class Avatar {
     this._armManual = null;                    // {ox,oy} demo-driven arm; overrides swipe/react
     this.s = 1; this.cssW = 0; this.cssH = 0;
     this.t0 = performance.now();
-    this.swipeStart = -1e9; this.reactStart = -1e9; this.reactKind = null;
+    this.swipeStart = -1e9; this.reactStart = -1e9; this.reactKind = null; this.reactDur = REACT_MS;
     this.visible = true; this._running = false;
 
     // ── idle life (blink / glance / hover-lean / periodic wave) — on for interactive avatars ──
@@ -107,6 +121,7 @@ export class Avatar {
 
   react(kind = 'wave') {
     this.reactKind = kind;
+    this.reactDur = REACT_DUR[kind] || REACT_MS;
     this.reactStart = performance.now();
     this._start();
   }
@@ -122,7 +137,7 @@ export class Avatar {
   _clickReact() { this.react(['wave', 'nod', 'wave'][this._reactCycle++ % 3]); }
 
   destroy() {
-    this._running = false;
+    this._running = false; _active.delete(this);
     this._ro?.disconnect(); this._io?.disconnect();
     if (this._onClick) this.canvas.removeEventListener('click', this._onClick);
     if (this._onEnter) { this.canvas.removeEventListener('pointerenter', this._onEnter); this.canvas.removeEventListener('pointerleave', this._onLeave); }
@@ -131,6 +146,7 @@ export class Avatar {
   // Idle life: schedule blinks, drive an eased lean (hover > glance), nod dips, and periodic waves.
   // Owns this.xform for life avatars; demos (onFrame / static transform) are left untouched.
   _updateLife(now) {
+    if (!this.life) { this._blinkP = 0; return; }   // life (blink/lean) only for interactive/hero avatars
     const calm = prefersReduce();
     if (!calm && now >= this._nextBlink && now - this._blinkStart > this._blinkDur + 40) {
       this._blinkStart = now;
@@ -140,7 +156,7 @@ export class Avatar {
     const bp = (now - this._blinkStart) / this._blinkDur;
     this._blinkP = (!calm && bp >= 0 && bp <= 1) ? Math.sin(bp * Math.PI) : 0;   // 0 → 1 → 0
 
-    if (!this.life || this.onFrame) return;   // demos own their transform
+    if (this.onFrame) return;   // a life avatar that also drives its own frame keeps its own transform
 
     let tRot = 0, tScale = 1, tDx = 0, tDy = 0;
     if (!calm) {
@@ -152,8 +168,13 @@ export class Avatar {
         this._glanceStart = now; this._glanceDir = Math.random() < 0.5 ? -1 : 1;
         this._nextGlance = now + 5000 + Math.random() * 7000;
       }
-      const r = (now - this.reactStart) / 700;                                    // nod = a brief downward dip
-      if (this.reactKind === 'nod' && r >= 0 && r <= 1) { const e = Math.sin(r * Math.PI); tDy += 0.03 * e; tScale *= 1 - 0.012 * e; }
+      const r = (now - this.reactStart) / this.reactDur;
+      if (r >= 0 && r <= 1) {
+        const e = Math.sin(r * Math.PI);
+        if (this.reactKind === 'nod') { tDy += 0.03 * e; tScale *= 1 - 0.012 * e; }          // downward dip
+        else if (this.reactKind === 'shrug') { tRot += -0.05 * e; tDy += -0.012 * e; }       // shoulders/head tilt up
+        else if (this.reactKind === 'celebrate') { tDy += -0.03 * Math.abs(Math.sin(r * Math.PI * 3)) * (1 - r); tScale *= 1 + 0.025 * e; } // happy hops
+      }
       if (this.idle && now >= this._nextIdleWave && now - this.reactStart > 2000 && now - this.swipeStart > 2000) {
         this.react('wave'); this._nextIdleWave = now + 13000 + Math.random() * 9000;
       }
@@ -191,16 +212,14 @@ export class Avatar {
   }
 
   _start() {
-    if (this._running || !this.visible) return;
+    if (!this.visible) return;
     this._running = true;
-    requestAnimationFrame(this._frame);
+    _wake(this);                 // join the shared ticker (idempotent)
   }
 
-  _frame = (now) => {
-    if (!this._running) return;
-    if (!this.visible) { this._running = false; return; }   // pause off-screen
-    requestAnimationFrame(this._frame);
-    if (!_assetsLoaded) return;
+  _tick(now) {
+    if (!this.visible) { this._running = false; _active.delete(this); return; }  // pause off-screen
+    if (!_assetsLoaded) return;  // stay scheduled; wait for the shared image cache
 
     this.onFrame?.(now, this);   // demos set pose / arm offset for this frame
     this._updateLife(now);       // blink + lean for life avatars (no-op for demos)
@@ -222,12 +241,20 @@ export class Avatar {
         const m = swingMag(u) * SWIPE_PX;
         ox = vx * m; oy = vy * m; showLines = true;
       }
-      const r = (now - this.reactStart) / REACT_MS;
-      if (this.reactKind === 'wave' && r >= 0 && r <= 1) {
-        const lift = r < 0.18 ? easeOut(r / 0.18) : 1 - easeOut((r - 0.18) / 0.82); // raise then lower
-        oy += -16 * lift;
-        ox += Math.sin(r * Math.PI * 6) * 34 * (1 - r);     // 3 decaying side-to-side waves
-        showLines = false;
+      const r = (now - this.reactStart) / this.reactDur;
+      if (r >= 0 && r <= 1) {
+        if (this.reactKind === 'wave') {
+          const lift = r < 0.18 ? easeOut(r / 0.18) : 1 - easeOut((r - 0.18) / 0.82); // raise then lower
+          oy += -16 * lift;
+          ox += Math.sin(r * Math.PI * 6) * 34 * (1 - r);   // 3 decaying side-to-side waves
+        } else if (this.reactKind === 'celebrate') {
+          const lift = r < 0.14 ? easeOut(r / 0.14) : 1 - easeOut((r - 0.14) / 0.86);
+          oy += -26 * lift;                                  // raise higher
+          ox += Math.sin(r * Math.PI * 8) * 42 * (1 - r);    // faster, bigger waves
+        } else if (this.reactKind === 'shrug') {
+          const e = Math.sin(r * Math.PI);
+          ox += 30 * e; oy += -8 * e;                        // hand opens outward (palms-up "dunno")
+        }
       }
     }
     const moving = Math.abs(ox) + Math.abs(oy) > 1.2;
@@ -266,9 +293,11 @@ export class Avatar {
       this.onAfterDraw(ctx, { s, ox, oy, cssW, cssH, now, handX, handY });
     }
 
-    // stop the loop if nothing is animating and idle is off (saves CPU)
-    if (!this.idle && !this.life && !moving && !showLines && !calm && !this._armManual && !this.onFrame) this._running = false;
-  };
+    // leave the shared ticker if nothing is animating (saves CPU)
+    if (!this.idle && !this.life && !moving && !showLines && !calm && !this._armManual && !this.onFrame) {
+      this._running = false; _active.delete(this);
+    }
+  }
 
   _draw(img, ox, oy) {
     if (img && img.complete && img.naturalWidth) this.ctx.drawImage(img, ox, oy, this.cssW, this.cssH);
