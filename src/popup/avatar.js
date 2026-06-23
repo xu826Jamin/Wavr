@@ -11,8 +11,11 @@
 const AW = 1024, AH = 768;
 const S = [772, 528], AP = [844, 502];   // shoulder socket + elbow (forearm is shared)
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-const SWIPE_PX = 90, SWIPE_MS = 620, CAP_FILL = 82, REACT_MS = 1100;
-const REACT_DUR = { wave: 1100, nod: 700, shrug: 950, celebrate: 1500 };
+const SWIPE_PX = 168, SWIPE_MS = 720, CAP_FILL = 82, REACT_MS = 1100;
+const DEG = Math.PI / 180;
+const SWIPE_LEAD = 17 * DEG;                 // forearm "leads" the swipe (flick), pivoting at the elbow
+const DIR_SIGN = { up: -1, down: 1, left: -1, right: 1 };  // lead-rotation sign per direction
+const REACT_DUR = { wave: 1150, nod: 700, shrug: 1000, celebrate: 1500 };
 
 // Hand centroid in the 1024x768 asset space, as a fraction of the canvas. Measured from the hand
 // sprites (open/fist/pointing/victory all cluster near [800, 290]). Demos use this to anchor the
@@ -28,8 +31,14 @@ const ASSET = {
 const url = p => { try { return chrome.runtime.getURL(p); } catch { return p; } };
 const prefersReduce = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
 const easeOut = u => 1 - Math.pow(1 - u, 3);
-// swipe travel: brief wind-up against dir, swing through, ease back to rest
-function swingMag(u){ if(u<0.20)return -0.25*easeOut(u/0.20); if(u<0.48)return -0.25+1.25*easeOut((u-0.20)/0.28); return 1-easeOut((u-0.48)/0.52); }
+const easeInOut = u => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+const easeOutBack = (u, k = 1.9) => 1 + (k + 1) * Math.pow(u - 1, 3) + k * Math.pow(u - 1, 2); // overshoot
+// Swipe travel (0→~1.1→0): anticipation pull-back, flick out with overshoot, spring-settle to rest.
+function swipePath(u) {
+  if (u < 0.14) return -0.18 * easeOut(u / 0.14);                         // wind up against the dir
+  if (u < 0.46) return -0.18 + 1.18 * easeOutBack((u - 0.14) / 0.32);     // flick out, overshoot past 1
+  return 1 - easeInOut((u - 0.46) / 0.54);                                // ease back home
+}
 
 // ---- shared image cache (load once across every Avatar instance) ----
 const _img = {};
@@ -230,34 +239,38 @@ export class Avatar {
     const calm = prefersReduce();
     const t = (now - this.t0) / 1000;
 
-    // arm offset from a demo, a swipe, or a reaction (in asset px)
-    let ox = 0, oy = 0, u = -1, showLines = false;
+    // arm motion (asset px translate + elbow rotation in rad) from a demo, a swipe, or a reaction
+    let ox = 0, oy = 0, rot = 0, u = -1, showLines = false;
     if (this._armManual) {                 // demo-driven arm (overrides swipe/react)
       ox = this._armManual.ox; oy = this._armManual.oy;
     } else if (!calm) {
       u = (now - this.swipeStart) / SWIPE_MS;
       if (u >= 0 && u <= 1) {
         const [vx, vy] = DIR_VEC[this.dir];
-        const m = swingMag(u) * SWIPE_PX;
-        ox = vx * m; oy = vy * m; showLines = true;
+        const m = swipePath(u) * SWIPE_PX;
+        ox = vx * m; oy = vy * m;
+        rot = DIR_SIGN[this.dir] * SWIPE_LEAD * swipePath(u);   // forearm flicks/leads the sweep
+        showLines = true;
       }
       const r = (now - this.reactStart) / this.reactDur;
       if (r >= 0 && r <= 1) {
+        const env = Math.sin(r * Math.PI);                       // 0→1→0 envelope (no snap in/out)
         if (this.reactKind === 'wave') {
-          const lift = r < 0.18 ? easeOut(r / 0.18) : 1 - easeOut((r - 0.18) / 0.82); // raise then lower
-          oy += -16 * lift;
-          ox += Math.sin(r * Math.PI * 6) * 34 * (1 - r);   // 3 decaying side-to-side waves
+          oy += -30 * env;                                       // lift the forearm to wave height
+          rot += Math.sin(r * Math.PI * 5) * 20 * DEG * env;     // pivot side-to-side at the elbow (a real wave)
         } else if (this.reactKind === 'celebrate') {
-          const lift = r < 0.14 ? easeOut(r / 0.14) : 1 - easeOut((r - 0.14) / 0.86);
-          oy += -26 * lift;                                  // raise higher
-          ox += Math.sin(r * Math.PI * 8) * 42 * (1 - r);    // faster, bigger waves
+          oy += -54 * env;                                       // raise high
+          rot += Math.sin(r * Math.PI * 7) * 24 * DEG * env;     // faster, bigger pivots
         } else if (this.reactKind === 'shrug') {
-          const e = Math.sin(r * Math.PI);
-          ox += 30 * e; oy += -8 * e;                        // hand opens outward (palms-up "dunno")
+          ox += 46 * env; oy += -6 * env;                        // hand opens outward…
+          rot += 15 * DEG * env;                                 // …palm rolls up ("dunno")
         }
       }
     }
-    const moving = Math.abs(ox) + Math.abs(oy) > 1.2;
+    const moving = Math.abs(ox) + Math.abs(oy) > 1.2 || Math.abs(rot) > 0.012;
+
+    // hand centre in screen px (forearm rotates about the elbow), for streaks + overlay hooks
+    const hand = this._handPos(ox, oy, rot);
 
     // gap-free idle breathe applied to the WHOLE avatar (body + arm move together)
     const breatheY = (this.idle && !calm) ? Math.sin(t * 1.1) * 2 : 0;
@@ -274,23 +287,20 @@ export class Avatar {
     ctx.translate(0, breatheY * s);
 
     this._draw(_img.base, 0, 0);
-    if (moving) {                                            // fill-only upper-arm capsule
+    if (moving) {                                            // fill-only upper-arm capsule (shoulder→elbow)
       ctx.save();
       ctx.lineCap = 'round'; ctx.strokeStyle = '#41474f'; ctx.lineWidth = CAP_FILL * s;
       ctx.beginPath(); ctx.moveTo(S[0] * s, S[1] * s); ctx.lineTo((AP[0] + ox) * s, (AP[1] + oy) * s); ctx.stroke();
       ctx.restore();
     }
-    this._draw(_img.fore, ox * s, oy * s);
-    this._draw(_img['hand_' + this.pose] || _img.hand_open, ox * s, oy * s);
+    this._drawArm(ox, oy, rot);                              // forearm + hand, pivoting at the elbow
     this._drawBlink(this._blinkP);                           // lids ride the transform (drawn on the face)
     ctx.restore();
 
-    if (showLines) this._motionLines(u, this.dir);
+    if (showLines) this._motionLines(u, this.dir, hand);     // streaks trail the actual hand
 
     if (this.onAfterDraw) {
-      const handX = HAND_REST.x * cssW + ox * s;
-      const handY = HAND_REST.y * cssH + oy * s;
-      this.onAfterDraw(ctx, { s, ox, oy, cssW, cssH, now, handX, handY });
+      this.onAfterDraw(ctx, { s, ox, oy, rot, cssW, cssH, now, handX: hand.x, handY: hand.y });
     }
 
     // leave the shared ticker if nothing is animating (saves CPU)
@@ -303,20 +313,42 @@ export class Avatar {
     if (img && img.complete && img.naturalWidth) this.ctx.drawImage(img, ox, oy, this.cssW, this.cssH);
   }
 
-  _motionLines(u, dir) {
-    let a; if (u < 0.30 || u > 0.74) a = 0; else a = Math.sin(Math.PI * (u - 0.30) / 0.44);
+  // Forearm + hand drawn together, translated by (ox,oy) and rotated `rot` about the elbow.
+  _drawArm(ox, oy, rot) {
+    const { ctx, s } = this;
+    const hand = _img['hand_' + this.pose] || _img.hand_open;
+    if (Math.abs(rot) < 1e-4) { this._draw(_img.fore, ox * s, oy * s); this._draw(hand, ox * s, oy * s); return; }
+    ctx.save();
+    const px = (AP[0] + ox) * s, py = (AP[1] + oy) * s;       // elbow pivot in screen space
+    ctx.translate(px, py); ctx.rotate(rot); ctx.translate(-px, -py);
+    this._draw(_img.fore, ox * s, oy * s);
+    this._draw(hand, ox * s, oy * s);
+    ctx.restore();
+  }
+
+  // Hand centre (screen px): rest point, translated by (ox,oy), then rotated about the elbow.
+  _handPos(ox, oy, rot) {
+    const { s } = this;
+    const hx = HAND_REST.x * AW + ox, hy = HAND_REST.y * AH + oy;
+    const ex = AP[0] + ox, ey = AP[1] + oy;
+    const dx = hx - ex, dy = hy - ey, c = Math.cos(rot), sn = Math.sin(rot);
+    return { x: (ex + dx * c - dy * sn) * s, y: (ey + dx * sn + dy * c) * s };
+  }
+
+  _motionLines(u, dir, hand) {
+    let a; if (u < 0.18 || u > 0.62) a = 0; else a = Math.sin(Math.PI * (u - 0.18) / 0.44);
     if (a <= 0) return;
     const { ctx, s, cssW, cssH } = this;
     const [vx, vy] = DIR_VEC[dir];
-    const hx = 0.82 * cssW, hy = 0.30 * cssH, len = Math.min(cssW, cssH) * 0.15;
+    const len = Math.min(cssW, cssH) * 0.22;                  // streaks trail behind the hand
+    const px = -vy, py = vx;
     ctx.save(); ctx.lineCap = 'round';
-    ctx.strokeStyle = `rgba(74,222,128,${(a * 0.6).toFixed(3)})`;
+    ctx.strokeStyle = `rgba(74,222,128,${(a * 0.55).toFixed(3)})`;
     for (let i = -1; i <= 1; i++) {
-      const px = -vy, py = vx;
-      const sx = hx + px * i * len * 0.5 - vx * len * 0.3;
-      const sy = hy + py * i * len * 0.5 - vy * len * 0.3;
+      const sx = hand.x + px * i * len * 0.34 - vx * len * 0.7;
+      const sy = hand.y + py * i * len * 0.34 - vy * len * 0.7;
       ctx.lineWidth = (i === 0 ? 5 : 3) * s * 2;
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + vx * len, sy + vy * len); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + vx * len * 0.66, sy + vy * len * 0.66); ctx.stroke();
     }
     ctx.restore();
   }

@@ -251,6 +251,22 @@ user said **"remove the fist option and move on."** **Removed entirely** from th
   face (`eye_grid.cjs`/`eye_probe3.cjs`), verified blink+lean faithfully (`verify_life.cjs`,
   `verify_blink_face.cjs`). Build clean. **Next: user confirms 3/4/5 live; then Phase 6 (avatar
   throughout the popup UI).**
+- 2026-06-23: **MOTION REWORK + real-browser verification (user: "animations not even passable").**
+  Root problem: I'd been "verifying" with `@napi-rs/canvas` re-renders of my own draw math — circular,
+  never showed the live result. **New tooling:** `avatar-assets/capture/` — `harness.html` loads the
+  REAL `src/popup/avatar.js` in headless Chromium (Playwright, chrome.* shimmed) and samples actual
+  animation frames; `capture.cjs` writes filmstrips + onion-skins + large key-frame montages
+  (`node avatar-assets/capture/capture.cjs <tag>`). This is now the source of truth for motion.
+  **Diagnosed from real captures:** amplitude far too small (~35px/300px), pure-translation forearm =
+  floaty sliding (no articulation), reactions indistinct, streaks pinned to edge. **Fixed in
+  `avatar.js`:** SWIPE_PX 90→168 + `swipePath` (anticipation → flick w/ `easeOutBack` overshoot →
+  `easeInOut` settle); **elbow rotation** (`_drawArm` pivots forearm+hand about the elbow; swipes get
+  a `SWIPE_LEAD` flick; wave/celebrate pivot side-to-side = a real wave; shrug rolls palm up); streaks
+  now trail the actual hand (`_handPos`). Re-captured (after): swipes read as clear directional
+  sweeps, wave pivots, celebrate is high-energy, all distinct. Build clean. Deps added (devDeps):
+  `playwright`, `@napi-rs/canvas`. Also used the `ui-ux-pro-max` skill for motion principles
+  (spring/overshoot, ease-out-in, distinct meaningful motion). **Lesson → CLAUDE.md at phase end:
+  verify avatar motion via the real-browser capture harness, never canvas-replica renders.**
 - 2026-06-23: **Phase 6 BUILT (0 cr).** Refactored `avatar.js` to a **shared RAF ticker** (pooled,
   6.2) — validated the scheduling headlessly. Added a **hero mascot** (waves on load/CTA), **none-
   state shrug** (explorer), **achievement celebrate** (hero), and `shrug`/`celebrate` reactions
