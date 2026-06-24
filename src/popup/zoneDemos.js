@@ -12,7 +12,8 @@
 import { Avatar, HAND_REST } from './avatar.js';
 
 const GREEN = '74,222,128';
-const reduce = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+let _rm = null;  // cache the MediaQueryList — matchMedia() re-parses its query string on every call
+const reduce = () => { try { return (_rm ||= matchMedia('(prefers-reduced-motion: reduce)')).matches; } catch { return false; } };
 const easeInOut = u => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
 const lerp = (a, b, u) => a + (b - a) * u;
 

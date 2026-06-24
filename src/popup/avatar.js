@@ -29,7 +29,11 @@ const ASSET = {
 };
 
 const url = p => { try { return chrome.runtime.getURL(p); } catch { return p; } };
-const prefersReduce = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+// Cache the live MediaQueryList once — matchMedia(query) re-parses the query string every call, which
+// the profiler showed costing ~18% of the heavy section when polled per-frame per-avatar. Reading
+// `.matches` on the cached list is a cheap boolean getter and still updates if the OS setting changes.
+let _rmQuery = null;
+const prefersReduce = () => { try { return (_rmQuery ||= window.matchMedia('(prefers-reduced-motion: reduce)')).matches; } catch { return false; } };
 const easeOut = u => 1 - Math.pow(1 - u, 3);
 const easeInOut = u => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
 const easeOutBack = (u, k = 1.9) => 1 + (k + 1) * Math.pow(u - 1, 3) + k * Math.pow(u - 1, 2); // overshoot
@@ -59,15 +63,27 @@ function loadAssets() {
 
 // ---- shared RAF ticker: ONE requestAnimationFrame drives every visible Avatar (pooled, Phase 6) ----
 const _active = new Set();
-let _rafId = 0;
+let _rafId = 0, _hidden = false;
 function _tickAll(now) {
   _rafId = 0;
   for (const a of _active) a._tick(now);   // deleting `a` from the Set mid-loop is safe in JS
-  if (_active.size) _rafId = requestAnimationFrame(_tickAll);
+  // A `_tick` can re-schedule mid-loop: demo avatars call setArm/setPose → _start → _wake from inside
+  // onFrame, which (since _rafId was zeroed above) schedules a frame and sets _rafId. Guard with
+  // `!_rafId` so we never schedule a SECOND one here — otherwise the pending-rAF count multiplies
+  // every frame into an exponential storm (was ~295k drawImage/s at Dos&Don'ts; now one frame each).
+  if (_active.size && !_rafId && !_hidden) _rafId = requestAnimationFrame(_tickAll);
 }
 function _wake(a) {
   _active.add(a);
-  if (!_rafId) _rafId = requestAnimationFrame(_tickAll);
+  if (!_rafId && !_hidden) _rafId = requestAnimationFrame(_tickAll);
+}
+// Stop the shared ticker entirely while the tab is hidden; re-wake the active set when it returns.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    _hidden = document.hidden;
+    if (_hidden) { if (_rafId) cancelAnimationFrame(_rafId); _rafId = 0; }
+    else if (_active.size && !_rafId) _rafId = requestAnimationFrame(_tickAll);
+  });
 }
 
 export class Avatar {
@@ -218,6 +234,9 @@ export class Avatar {
     this.canvas.width = Math.round(this.cssW * dpr);
     this.canvas.height = Math.round(this.cssH * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Setting canvas.width clears it — wake the ticker for one repaint so STATIC avatars (idle:false,
+    // which paint once then leave the loop) don't blank out after a resize / DPR change.
+    this._start();
   }
 
   _start() {

@@ -428,4 +428,15 @@ function processFrame() {
   }
 }
 
-init();
+// Lazy-load MediaPipe (the ~19 MB gesture wasm + 8 MB model) only once the camera preview actually
+// starts. Previously init() ran on every options-page open even with the preview off (default), paying
+// that download/compile up front and starting an always-on setInterval(processFrame, 33). The shared
+// preview/cursor <video>s autoplay when startCamera() (popup.js) sets their srcObject, so their first
+// playback event is our trigger.
+let _initStarted = false;
+function ensureInit() { if (_initStarted) return; _initStarted = true; init(); }
+for (const v of [video, cursorVideoEl]) {
+  if (!v) continue;
+  v.addEventListener('loadedmetadata', ensureInit, { once: true });
+  v.addEventListener('playing', ensureInit, { once: true });
+}

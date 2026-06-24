@@ -35,10 +35,10 @@ Zip `dist/*` for Chrome Web Store upload. Built with `vite-plugin-web-extension`
 | `src/content/overlay.js` | Injected into every page. Builds the draggable PiP widget (camera feed + gesture bar) and the cursor dot. Shadow DOM isolated. |
 | `src/popup/popup.html` | Full-page options UI (set as `options_page` in manifest). Single-page with two tabs: Scroll Mode and Cursor Mode. |
 | `src/popup/popup.js` | Handles all settings logic, first-run wizard, mockup panel, preset panel, accordion, share/export/import, achievements |
-| `src/popup/preview-detect.js` | Runs a second MediaPipe instance in the popup for the live preview card. Draws wrist trail + dead zone on canvas. Flashes `previewArea` on gesture. |
+| `src/popup/preview-detect.js` | Runs a second MediaPipe instance in the popup for the live preview card. Draws wrist trail + dead zone on canvas. Flashes `previewArea` on gesture. **`init()` is lazy** — the ~19 MB wasm+model load and the 33 ms detection interval start only when the preview/cursor `<video>` first plays (on `startCamera()`), not on every options-page open. |
 | `src/popup/nav.js` | Tab switching with sliding indicator animation |
 | `src/popup/options.html/.js` | Advanced settings page (closed_swipe_* mappings). Opened via `chrome.tabs.create` not `openOptionsPage`. |
-| `src/popup/heroCanvas.js` | Canvas particle background for the hero section. 55 particles, radial vignette, mouse repulsion. Called from popup.js. |
+| `src/popup/heroCanvas.js` | Canvas particle background for the hero section. 55 particles, radial vignette, mouse repulsion. Called from popup.js. Its rAF loop **pauses when the hero scrolls off-screen** (IntersectionObserver) and on `document.hidden`; restarts on either returning. |
 | `src/popup/scrollReveal.js` | IntersectionObserver scroll-reveal. Queries `.reveal` elements, adds `.revealed` class on intersection, applies stagger via `data-reveal-i`. Called from popup.js. |
 | `src/popup/avatar.js` | **Reusable 2D `Avatar` class** — the masked-ninja mascot. One static body + a shared forearm + a swappable hand sprite; `play(pose,dir)` swipes, `react('wave'/'nod'/'shrug'/'celebrate')`, idle life (blink/glance/hover-lean), `setArm/setPose/setTransform` for demos. See "Avatar / mascot system" below. |
 | `src/popup/zoneDemos.js` | Avatar-driven neutral-zone + cursor-zone concept demos (`initZoneDemos()`). Uses Avatar `onFrame`/`onAfterDraw` hooks. |
@@ -87,7 +87,7 @@ const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogi
 Extension ID: `mekfjddabogijjildgiiikkibdmekhpo`.
 
 When bumping versions, update `manifest.json` `version` **and** both `popup.html` labels (the
-`.footer-version` span and the `#intro` `.section-eyebrow`). Current: **v2.2.0**.
+`.footer-version` span and the `#intro` `.section-eyebrow`). Current: **v2.2.1**.
 
 ## UI structure (popup.html)
 
@@ -350,6 +350,27 @@ puppet: one static body sprite + ONE shared forearm + a swappable hand (`open`/`
   (`_active` Set + `_tickAll`/`_wake`); shared image cache; per-instance `IntersectionObserver`
   off-screen pause; DPR capped at 2. Under `prefers-reduced-motion` everything holds static and the
   loop stops after one paint (re-wakes via `_start` on any state change).
+
+### Avatar perf invariants (perf pass 2026-06-23 — DON'T regress; see [perf/baseline.md](perf/baseline.md))
+- **Exactly ONE pending rAF, ever.** Demo avatars call `setArm`/`setPose` → `_start` → `_wake` from
+  inside their own `onFrame` (i.e. *during* `_tickAll`). `_tickAll` zeroes `_rafId` at the top, so its
+  end-of-loop reschedule MUST stay guarded `if (_active.size && !_rafId && !_hidden)` and `_wake` MUST
+  stay `if (!_rafId && !_hidden)`. Without the guard every frame schedules an extra rAF → exponential
+  storm — the real cause of the unusable Dos&Don'ts (~295k `drawImage`/s; the one-line fix took it
+  **0.7→60 fps**). `drawImage`/`matchMedia` were symptoms, not the cause.
+- **Static avatars don't loop.** No time-based motion ⇒ `idle:false` (and no `onFrame`/`life`) so it
+  paints once and leaves the ticker; `_resize()` calls `_start()` so a resize/DPR change repaints that
+  one frame (else it blanks). Dos&Don'ts: only `reset` ×2 animate; the 6 distance/framing/lighting
+  scenes are static. Don't give a decorative avatar `idle:true` "to breathe."
+- **`prefersReduce()` caches the `MediaQueryList`** (`_rmQuery`); never `matchMedia(query)` per-frame
+  (re-parsing cost ~18% of the heavy section). Same `_rm` cache in `dosDonts.js`/`zoneDemos.js`.
+- **Tab-hidden pause:** a module-level `visibilitychange` handler stops the shared ticker while
+  `document.hidden` and re-wakes the active set on return.
+- **Tooling (`avatar-assets/capture/`):** `prof.cjs <tag> [dpr]` (CDP **sampling** profiler = source of
+  truth; `HEADED=1` for real-GPU fps) · `count.cjs` (drawImage-calls/canvas — found the storm) ·
+  `diag.cjs` (hot-function profile) · `shim.cjs` (shared chrome.* shim). `Performance.getMetrics`
+  `ScriptDuration` is **bogus** in headless, and headless rasters Canvas2D in **software** (absolute fps
+  only meaningful once per-frame work is light) — trust sample *composition* + `count.cjs`.
 
 **Placements:** explorer (`mascotCanvas`, interactive), hero (`heroAvatarCanvas`, waves on load/CTA,
 celebrates on achievement), neutral/cursor zone demos, `#tutorial` dos/don'ts, and the on-page overlay

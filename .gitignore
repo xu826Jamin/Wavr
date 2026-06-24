@@ -29,3 +29,6 @@ avatar-assets/**/*.webm
 *.njsproj
 *.sln
 *.sw?
+
+# Perf profiler raw output (regenerable; keep baseline.md)
+perf/*.json

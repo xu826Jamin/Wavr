@@ -32,9 +32,18 @@ export function initHeroCanvas(canvas) {
   }, { passive: true });
   section.addEventListener('mouseleave', () => { mouseX = -999; mouseY = -999; });
 
-  let lastTime = 0;
+  // Pause the particle loop when the hero is scrolled off-screen or the tab is hidden — otherwise it
+  // runs 55 particles at ~30fps forever even while the user reads sections far below it.
+  let lastTime = 0, rafId = 0, onScreen = true;
+  function start() { if (!rafId && onScreen && !document.hidden) rafId = requestAnimationFrame(draw); }
+  const io = new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; if (onScreen) start(); }, { threshold: 0 });
+  io.observe(section);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) start(); });
+
   function draw(timestamp) {
-    requestAnimationFrame(draw);
+    rafId = 0;
+    if (!onScreen || document.hidden) return;   // stop; observers/visibility restart us
+    rafId = requestAnimationFrame(draw);
     const delta = timestamp - lastTime;
     if (delta < 33) return;
     lastTime = timestamp;
@@ -75,5 +84,5 @@ export function initHeroCanvas(canvas) {
     ctx.fillRect(0, 0, w, h);
   }
 
-  requestAnimationFrame(draw);
+  start();
 }

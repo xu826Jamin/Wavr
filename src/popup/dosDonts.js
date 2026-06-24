@@ -13,7 +13,8 @@
 import { Avatar, HAND_REST } from './avatar.js';
 
 const GREEN = '74,222,128', RED = '248,113,113';
-const reduce = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+let _rm = null;  // cache the MediaQueryList — matchMedia() re-parses its query string on every call
+const reduce = () => { try { return (_rm ||= matchMedia('(prefers-reduced-motion: reduce)')).matches; } catch { return false; } };
 const easeInOut = u => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
 
 // dashed neutral-zone circle centred on the hand-rest point (shared visual language with zoneDemos)
@@ -32,15 +33,18 @@ function neutralRing(ctx, m, colorRGB, alpha) {
 // Each returns the opts passed to `new Avatar`. Static scenes just set a transform; animated
 // ones use onFrame/onAfterDraw.
 
+// idle:false on the 6 non-animating scenes (distance/framing/lighting) makes them paint ONCE and
+// leave the shared ticker — they have no time-based motion, so the old idle:true breathe was pure
+// per-frame waste (full-size drawImage + gradients every frame). Only reset (2) genuinely animates.
 const scenes = {
   // Distance ----------------------------------------------------------------
-  distanceGood: () => ({ pose: 'open', idle: true }),
-  distanceBad: () => ({ pose: 'open', idle: true,
+  distanceGood: () => ({ pose: 'open', idle: false }),
+  distanceBad: () => ({ pose: 'open', idle: false,
     transform: { scale: 1.9, originX: 0.6, originY: 0.42 } }),   // zoom toward hand → fills/overflows
 
   // Framing -----------------------------------------------------------------
-  framingGood: () => ({ pose: 'open', idle: true }),
-  framingBad: () => ({ pose: 'open', idle: true,
+  framingGood: () => ({ pose: 'open', idle: false }),
+  framingBad: () => ({ pose: 'open', idle: false,
     transform: { dx: 0.42, dy: 0.06 } }),                        // shove right → hand leaves frame
 
   // Reset -------------------------------------------------------------------
@@ -83,7 +87,7 @@ const scenes = {
 
   // Lighting ----------------------------------------------------------------
   lightingGood: () => ({
-    pose: 'open', idle: true,
+    pose: 'open', idle: false,
     onAfterDraw: (ctx, m) => {                                   // soft even front light
       const g = ctx.createRadialGradient(m.cssW * 0.5, m.cssH * 0.32, 0, m.cssW * 0.5, m.cssH * 0.32, m.cssW * 0.7);
       g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -91,7 +95,7 @@ const scenes = {
     },
   }),
   lightingBad: () => ({
-    pose: 'open', idle: true,
+    pose: 'open', idle: false,
     onAfterDraw: (ctx, m) => {                                   // backlit silhouette + dark vignette
       ctx.save();
       ctx.fillStyle = 'rgba(8,8,10,0.6)'; ctx.fillRect(0, 0, m.cssW, m.cssH);          // overall darken
