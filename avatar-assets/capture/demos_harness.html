@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html, body { margin: 0; background: #0c0c0c; }
+    .demo { width: 260px; height: 195px; display: inline-block; }
+    canvas { width: 100%; height: 100%; display: block; }
+  </style>
+</head>
+<body>
+  <!-- parents sized so Avatar._resize() picks up real dimensions -->
+  <div class="demo"><canvas id="neutralDemoCanvas"></canvas></div>
+  <div class="demo"><canvas id="cursorDemoCanvas"></canvas></div>
+  <span id="neutralDemoCaption"></span><span id="cursorDemoCaption"></span>
+  <div class="demo"><canvas id="dd_resetGood"></canvas></div>
+  <div class="demo"><canvas id="dd_resetBad"></canvas></div>
+  <div class="demo"><canvas id="dd_distanceGood"></canvas></div>
+  <div class="demo"><canvas id="dd_distanceBad"></canvas></div>
+  <div class="demo"><canvas id="dd_framingGood"></canvas></div>
+  <div class="demo"><canvas id="dd_framingBad"></canvas></div>
+  <div class="demo"><canvas id="dd_lightingGood"></canvas></div>
+  <div class="demo"><canvas id="dd_lightingBad"></canvas></div>
+  <script>
+    // Minimal chrome.* shim so avatar.js's url() resolves assets over the local server.
+    window.chrome = { runtime: { getURL: p => '/src/' + p } };
+  </script>
+  <script type="module">
+    import { initZoneDemos } from '/src/popup/zoneDemos.js';
+    import { initDosDonts } from '/src/popup/dosDonts.js';
+    initZoneDemos();
+    initDosDonts();
+    window.grab = id => document.getElementById(id).toDataURL('image/png');
+    window.__ready = true;
+  </script>
+</body>
+</html>

@@ -1,7 +1,9 @@
-// Reusable 2D ninja Avatar — one static body, a shared forearm, and a swappable hand. Swipes
-// TRANSLATE the forearm+hand (correct directions, palm to camera); a fill-only upper-arm capsule
-// fills the gap during motion. Idle = a gap-free whole-body "breathe". Reactions (wave) on demand.
-// Instances are cheap: assets load once and are shared; each instance pauses when off-screen.
+// Reusable 2D ninja Avatar — a body (no arm), a movable upper-arm, a shared forearm, and a
+// swappable hand, posed as a real ARTICULATED 2-bone chain. A swipe/reaction/demo sets a HAND
+// TARGET; closed-form 2-bone IK (law of cosines) solves the shoulder + elbow angles so the arm
+// BENDS to reach it and never detaches. Procedural joint caps hide the sprite seams. Idle = a
+// gap-free whole-body "breathe". Instances are cheap: assets load once and are shared; each
+// instance pauses when off-screen.
 //
 //   const a = new Avatar(canvasEl, { interactive: true });
 //   a.play('open', 'up');   a.react('wave');
@@ -9,12 +11,15 @@
 // Geometry is in the 1024x768 asset space, scaled to the canvas (both 4:3).
 
 const AW = 1024, AH = 768;
-const S = [772, 528], AP = [844, 502];   // shoulder socket + elbow (forearm is shared)
+const S = [772, 528], AP = [844, 502], WRIST = [825, 392];   // shoulder · rest elbow · rest wrist
+const L1 = Math.hypot(AP[0] - S[0], AP[1] - S[1]);            // upper-arm bone (shoulder→elbow) ≈ 76.5
+const L2 = Math.hypot(WRIST[0] - AP[0], WRIST[1] - AP[1]);    // forearm bone (elbow→wrist) ≈ 111.6
+const REST_SHO = Math.atan2(AP[1] - S[1], AP[0] - S[0]);      // rest shoulder→elbow angle
+const REST_FORE = Math.atan2(WRIST[1] - AP[1], WRIST[0] - AP[0]); // rest elbow→wrist angle
+const BEND = 1;                                               // elbow bend side (so rest solves back to AP)
+const SUIT_FILL = '#454b54', DELTOID_R = 46, ELBOW_R = 33;   // procedural joint caps hide the sprite seams
 const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-const SWIPE_PX = 168, SWIPE_MS = 720, CAP_FILL = 82, REACT_MS = 1100;
-const DEG = Math.PI / 180;
-const SWIPE_LEAD = 17 * DEG;                 // forearm "leads" the swipe (flick), pivoting at the elbow
-const DIR_SIGN = { up: -1, down: 1, left: -1, right: 1 };  // lead-rotation sign per direction
+const SWIPE_PX = 88, SWIPE_MS = 720, REACT_MS = 1100;        // swipe = hand-target travel; IK reaches it
 const REACT_DUR = { wave: 1150, nod: 700, shrug: 1000, celebrate: 1500 };
 
 // Hand centroid in the 1024x768 asset space, as a fraction of the canvas. Measured from the hand
@@ -23,7 +28,8 @@ const REACT_DUR = { wave: 1150, nod: 700, shrug: 1000, celebrate: 1500 };
 export const HAND_REST = { x: 800 / AW, y: 290 / AH };
 
 const ASSET = {
-  base: 'assets/avatar/base_body.webp', fore: 'assets/avatar/forearm.webp',
+  base: 'assets/avatar/base_body.webp', upperarm: 'assets/avatar/upperarm.webp',
+  fore: 'assets/avatar/forearm.webp',
   hand_open: 'assets/avatar/hand_open.webp', hand_closed: 'assets/avatar/hand_fist.webp',
   hand_pointing: 'assets/avatar/hand_pointing.webp', hand_victory: 'assets/avatar/hand_victory.webp',
 };
@@ -258,38 +264,38 @@ export class Avatar {
     const calm = prefersReduce();
     const t = (now - this.t0) / 1000;
 
-    // arm motion (asset px translate + elbow rotation in rad) from a demo, a swipe, or a reaction
-    let ox = 0, oy = 0, rot = 0, u = -1, showLines = false;
-    if (this._armManual) {                 // demo-driven arm (overrides swipe/react)
-      ox = this._armManual.ox; oy = this._armManual.oy;
+    // Hand TARGET offset (asset px from the rest wrist) from a demo, a swipe, or a reaction. The
+    // 2-bone IK below turns this target into shoulder + elbow angles so the arm bends to reach it.
+    let offX = 0, offY = 0, u = -1, showLines = false;
+    if (this._armManual) {                 // demo-driven hand target (overrides swipe/react)
+      offX = this._armManual.ox; offY = this._armManual.oy;
     } else if (!calm) {
       u = (now - this.swipeStart) / SWIPE_MS;
       if (u >= 0 && u <= 1) {
         const [vx, vy] = DIR_VEC[this.dir];
         const m = swipePath(u) * SWIPE_PX;
-        ox = vx * m; oy = vy * m;
-        rot = DIR_SIGN[this.dir] * SWIPE_LEAD * swipePath(u);   // forearm flicks/leads the sweep
+        offX = vx * m; offY = vy * m;        // push the hand target along the swipe direction
         showLines = true;
       }
       const r = (now - this.reactStart) / this.reactDur;
       if (r >= 0 && r <= 1) {
         const env = Math.sin(r * Math.PI);                       // 0→1→0 envelope (no snap in/out)
         if (this.reactKind === 'wave') {
-          oy += -30 * env;                                       // lift the forearm to wave height
-          rot += Math.sin(r * Math.PI * 5) * 20 * DEG * env;     // pivot side-to-side at the elbow (a real wave)
+          offY += -34 * env;                                     // raise the hand to wave height
+          offX += Math.sin(r * Math.PI * 5) * 30 * env;          // waggle side-to-side (IK swings the forearm)
         } else if (this.reactKind === 'celebrate') {
-          oy += -54 * env;                                       // raise high
-          rot += Math.sin(r * Math.PI * 7) * 24 * DEG * env;     // faster, bigger pivots
+          offY += -60 * env;                                     // raise high
+          offX += Math.sin(r * Math.PI * 7) * 34 * env;          // faster, bigger waggle
         } else if (this.reactKind === 'shrug') {
-          ox += 46 * env; oy += -6 * env;                        // hand opens outward…
-          rot += 15 * DEG * env;                                 // …palm rolls up ("dunno")
+          offX += 50 * env; offY += -4 * env;                    // hand opens outward ("dunno")
         }
       }
     }
-    const moving = Math.abs(ox) + Math.abs(oy) > 1.2 || Math.abs(rot) > 0.012;
+    const ik = this._solveIK(WRIST[0] + offX, WRIST[1] + offY);
+    const moving = Math.abs(offX) + Math.abs(offY) > 1.2;
 
-    // hand centre in screen px (forearm rotates about the elbow), for streaks + overlay hooks
-    const hand = this._handPos(ox, oy, rot);
+    // hand centre in screen px (rides the IK forearm), for streaks + overlay hooks
+    const hand = this._handPos(ik);
 
     // gap-free idle breathe applied to the WHOLE avatar (body + arm move together)
     const breatheY = (this.idle && !calm) ? Math.sin(t * 1.1) * 2 : 0;
@@ -305,21 +311,18 @@ export class Avatar {
     }
     ctx.translate(0, breatheY * s);
 
-    this._draw(_img.base, 0, 0);
-    if (moving) {                                            // fill-only upper-arm capsule (shoulder→elbow)
-      ctx.save();
-      ctx.lineCap = 'round'; ctx.strokeStyle = '#41474f'; ctx.lineWidth = CAP_FILL * s;
-      ctx.beginPath(); ctx.moveTo(S[0] * s, S[1] * s); ctx.lineTo((AP[0] + ox) * s, (AP[1] + oy) * s); ctx.stroke();
-      ctx.restore();
-    }
-    this._drawArm(ox, oy, rot);                              // forearm + hand, pivoting at the elbow
+    this._draw(_img.base, 0, 0);                              // body (arm removed)
+    this._drawUpperArm(ik.shoRot);                           // upper-arm sprite, rotated about the shoulder
+    this._cap(S[0], S[1], DELTOID_R);                        // deltoid: hides the shoulder seam
+    this._cap(ik.ex, ik.ey, ELBOW_R);                        // elbow joint: hides the elbow seam
+    this._drawArm(ik);                                       // forearm + hand, pivoting at the IK elbow
     this._drawBlink(this._blinkP);                           // lids ride the transform (drawn on the face)
     ctx.restore();
 
     if (showLines) this._motionLines(u, this.dir, hand);     // streaks trail the actual hand
 
     if (this.onAfterDraw) {
-      this.onAfterDraw(ctx, { s, ox, oy, rot, cssW, cssH, now, handX: hand.x, handY: hand.y });
+      this.onAfterDraw(ctx, { s, ox: offX, oy: offY, rot: ik.foreRot, cssW, cssH, now, handX: hand.x, handY: hand.y });
     }
 
     // leave the shared ticker when nothing is animating (saves CPU). Under reduced motion there is
@@ -329,30 +332,63 @@ export class Avatar {
     }
   }
 
+  // Closed-form 2-bone IK (law of cosines): solve shoulder + elbow so the wrist reaches (tx,ty).
+  // Returns the elbow position + the rotation DELTAS to apply to the upper-arm / forearm sprites.
+  _solveIK(tx, ty) {
+    const dx = tx - S[0], dy = ty - S[1];
+    const dist = Math.hypot(dx, dy) || 1e-3;
+    const cd = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, dist));  // clamp to reach
+    const base = Math.atan2(dy, dx);
+    let cosA = (L1 * L1 + cd * cd - L2 * L2) / (2 * L1 * cd);
+    cosA = Math.max(-1, Math.min(1, cosA));
+    const shoAngle = base + BEND * Math.acos(cosA);            // shoulder→elbow absolute angle
+    const ex = S[0] + L1 * Math.cos(shoAngle), ey = S[1] + L1 * Math.sin(shoAngle);
+    const cx = S[0] + cd * Math.cos(base), cy = S[1] + cd * Math.sin(base);       // clamped target
+    const foreAngle = Math.atan2(cy - ey, cx - ex);           // elbow→wrist absolute angle
+    return { ex, ey, shoRot: shoAngle - REST_SHO, foreRot: foreAngle - REST_FORE };
+  }
+
   _draw(img, ox, oy) {
     if (img && img.complete && img.naturalWidth) this.ctx.drawImage(img, ox, oy, this.cssW, this.cssH);
   }
 
-  // Forearm + hand drawn together, translated by (ox,oy) and rotated `rot` about the elbow.
-  _drawArm(ox, oy, rot) {
+  // Procedural joint cap (fill-only, suit colour) — bridges the gap where two arm sprites meet.
+  _cap(cx, cy, r) {
     const { ctx, s } = this;
-    const hand = _img['hand_' + this.pose] || _img.hand_open;
-    if (Math.abs(rot) < 1e-4) { this._draw(_img.fore, ox * s, oy * s); this._draw(hand, ox * s, oy * s); return; }
     ctx.save();
-    const px = (AP[0] + ox) * s, py = (AP[1] + oy) * s;       // elbow pivot in screen space
-    ctx.translate(px, py); ctx.rotate(rot); ctx.translate(-px, -py);
-    this._draw(_img.fore, ox * s, oy * s);
-    this._draw(hand, ox * s, oy * s);
+    ctx.fillStyle = SUIT_FILL;
+    ctx.beginPath(); ctx.arc(cx * s, cy * s, r * s, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
-  // Hand centre (screen px): rest point, translated by (ox,oy), then rotated about the elbow.
-  _handPos(ox, oy, rot) {
+  // Upper-arm sprite, rotated `shoRot` about the shoulder socket S.
+  _drawUpperArm(shoRot) {
+    const { ctx, s } = this;
+    if (Math.abs(shoRot) < 1e-4) { this._draw(_img.upperarm, 0, 0); return; }
+    ctx.save();
+    const px = S[0] * s, py = S[1] * s;
+    ctx.translate(px, py); ctx.rotate(shoRot); ctx.translate(-px, -py);
+    this._draw(_img.upperarm, 0, 0);
+    ctx.restore();
+  }
+
+  // Forearm + hand drawn together: rest-elbow AP mapped onto the IK elbow, rotated `foreRot`.
+  _drawArm(ik) {
+    const { ctx, s } = this;
+    const hand = _img['hand_' + this.pose] || _img.hand_open;
+    ctx.save();
+    ctx.translate(ik.ex * s, ik.ey * s); ctx.rotate(ik.foreRot); ctx.translate(-AP[0] * s, -AP[1] * s);
+    this._draw(_img.fore, 0, 0);
+    this._draw(hand, 0, 0);
+    ctx.restore();
+  }
+
+  // Hand centre (screen px): rest hand point carried by the IK forearm (rotate about elbow + offset).
+  _handPos(ik) {
     const { s } = this;
-    const hx = HAND_REST.x * AW + ox, hy = HAND_REST.y * AH + oy;
-    const ex = AP[0] + ox, ey = AP[1] + oy;
-    const dx = hx - ex, dy = hy - ey, c = Math.cos(rot), sn = Math.sin(rot);
-    return { x: (ex + dx * c - dy * sn) * s, y: (ey + dx * sn + dy * c) * s };
+    const rx = HAND_REST.x * AW - AP[0], ry = HAND_REST.y * AH - AP[1];
+    const c = Math.cos(ik.foreRot), sn = Math.sin(ik.foreRot);
+    return { x: (ik.ex + rx * c - ry * sn) * s, y: (ik.ey + rx * sn + ry * c) * s };
   }
 
   _motionLines(u, dir, hand) {

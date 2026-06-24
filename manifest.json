@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Wavr",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "description": "Wave to scroll, click, and navigate Chrome with hand gestures. Works on any website — no touching required.",
   "permissions": [
     "offscreen",

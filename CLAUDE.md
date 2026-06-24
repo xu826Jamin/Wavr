@@ -40,7 +40,7 @@ Zip `dist/*` for Chrome Web Store upload. Built with `vite-plugin-web-extension`
 | `src/popup/options.html/.js` | Advanced settings page (closed_swipe_* mappings). Opened via `chrome.tabs.create` not `openOptionsPage`. |
 | `src/popup/heroCanvas.js` | Canvas particle background for the hero section. 55 particles, radial vignette, mouse repulsion. Called from popup.js. Its rAF loop **pauses when the hero scrolls off-screen** (IntersectionObserver) and on `document.hidden`; restarts on either returning. |
 | `src/popup/scrollReveal.js` | IntersectionObserver scroll-reveal. Queries `.reveal` elements, adds `.revealed` class on intersection, applies stagger via `data-reveal-i`. Called from popup.js. |
-| `src/popup/avatar.js` | **Reusable 2D `Avatar` class** — the masked-ninja mascot. One static body + a shared forearm + a swappable hand sprite; `play(pose,dir)` swipes, `react('wave'/'nod'/'shrug'/'celebrate')`, idle life (blink/glance/hover-lean), `setArm/setPose/setTransform` for demos. See "Avatar / mascot system" below. |
+| `src/popup/avatar.js` | **Reusable 2D `Avatar` class** — the masked-ninja mascot, an ARTICULATED 2-bone arm (body + movable upper-arm + shared forearm + swappable hand) driven by closed-form 2-bone IK: `play(pose,dir)`/`react()`/`setArm()` set a HAND TARGET and the shoulder+elbow BEND to reach it (no detaching forearm). Also `react('wave'/'nod'/'shrug'/'celebrate')`, idle life (blink/glance/hover-lean), `setPose/setTransform` for demos. See "Avatar / mascot system" below. |
 | `src/popup/zoneDemos.js` | Avatar-driven neutral-zone + cursor-zone concept demos (`initZoneDemos()`). Uses Avatar `onFrame`/`onAfterDraw` hooks. |
 | `src/popup/dosDonts.js` | Avatar-driven Dos & Don'ts ✓/✗ scenes (`initDosDonts()`) in `#tutorial`: Distance, Framing, Reset, Lighting. Composed from the rig via `transform`. |
 
@@ -87,7 +87,7 @@ const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogi
 Extension ID: `mekfjddabogijjildgiiikkibdmekhpo`.
 
 When bumping versions, update `manifest.json` `version` **and** both `popup.html` labels (the
-`.footer-version` span and the `#intro` `.section-eyebrow`). Current: **v2.2.1**.
+`.footer-version` span and the `#intro` `.section-eyebrow`). Current: **v2.3.0**.
 
 ## UI structure (popup.html)
 
@@ -325,21 +325,30 @@ What it's missing vs. the target:
 
 ## Avatar / mascot system
 
-A premium, masked-ninja mascot built entirely in code (0 Higgsfield credits in the end). Single-body
-puppet: one static body sprite + ONE shared forearm + a swappable hand (`open`/`closed`/`pointing`/
-`victory`). Assets `src/assets/avatar/*.webp` (~76 KB total), copied to `dist/assets/avatar/` by the
-`copyAssets` Vite plugin and exposed to content scripts via `web_accessible_resources` (manifest).
+A premium, masked-ninja mascot built entirely in code (0 Higgsfield credits in the end). ARTICULATED
+2-bone puppet: body (arm removed) + a movable **upper-arm** sprite + ONE shared forearm + a swappable
+hand (`open`/`closed`/`pointing`/`victory`). Assets `src/assets/avatar/*.webp` (~80 KB total), copied to
+`dist/assets/avatar/` by the `copyAssets` Vite plugin and exposed to content scripts via
+`web_accessible_resources` (manifest). NB the upper-arm/bicep was originally BAKED into `base_body`
+(`arm_open.png` is only forearm+hand); `avatar-assets/recut_articulated.cjs` splits it into `upperarm.webp`
++ an arm-less `base_body.webp`.
 
 **`src/popup/avatar.js` — the `Avatar` class** (geometry in 1024×768 asset space, scaled to a 4:3 canvas):
-- **Rig:** body + fill-only upper-arm capsule (`#41474f`, shoulder→elbow, drawn only while moving) +
-  forearm + hand. The forearm+hand **translate AND rotate about the elbow** (`AP=[844,502]`) — rotation
-  is what makes motion read as articulated rather than floaty sliding.
+- **Rig (2-bone IK):** body → upper-arm sprite (rotates about the shoulder `S=[772,528]`) → forearm+hand
+  (rotates about the elbow). Every driver (swipe / `setArm` / reaction) sets a HAND TARGET = rest wrist
+  `WRIST=[825,392]` + an `(offX,offY)` offset; `_solveIK(tx,ty)` is the closed-form law-of-cosines 2-bone
+  solver (bones `L1`≈76 shoulder→elbow, `L2`≈112 elbow→wrist; `BEND=1` fixes the elbow side; target
+  clamped to reach) returning the elbow pos + the shoulder/forearm rotation DELTAS. So the limb BENDS to
+  reach and never detaches — this replaced the old translate-the-forearm + `#41474f` capsule fake.
+  Fill-only procedural joint caps (`_cap()`, suit `#454b54`, `DELTOID_R`/`ELBOW_R`) hide the sprite seams.
+  Short raised-arm rest pose ⇒ limited UPWARD reach (hand rises ~50px on a swipe-up); reads via the bend +
+  streaks. `_handPos(ik)` carries the hand centroid on the IK forearm for streaks/`onAfterDraw`.
 - **Swipe** (`play(pose,dir)`): `swipePath` = anticipation pull-back → flick out with `easeOutBack`
-  overshoot → `easeInOut` settle; `SWIPE_PX=168`; a `SWIPE_LEAD` elbow flick; green motion streaks
-  trail the actual hand (`_handPos`). Directions read clearly.
-- **Reactions** (`react(kind)`, per-kind `REACT_DUR`): `wave` (pivot at elbow), `nod` (body dip),
-  `shrug` (hand out + head tilt — used for the explorer NONE state), `celebrate` (high raise + hops —
-  fired on achievement unlock).
+  overshoot → `easeInOut` settle; `SWIPE_PX=88` (hand-target travel — keep modest so IK doesn't hard-clamp);
+  green motion streaks trail the actual hand. Directions read clearly.
+- **Reactions** (`react(kind)`, per-kind `REACT_DUR`) — re-expressed as hand-target offsets: `wave`
+  (raise + side-to-side waggle via `offX`, IK swings the forearm), `nod` (body dip, in `_updateLife`),
+  `shrug` (hand out — explorer NONE state), `celebrate` (high raise + faster waggle — achievement unlock).
 - **Idle life** (gated on `life`, default = `interactive`): blink (skin lids over the measured pupils
   L≈[476,329]/R≈[588,325], skin `rgb(247,201,170)`), occasional glance, hover-lean, periodic wave.
   Demos (non-interactive) never blink/lean.
@@ -384,14 +393,19 @@ Motion quality MUST be checked by running the **real** `avatar.js` in a real bro
 itself, and once led to shipping "verified" animations that were not passable). Tooling lives in
 `avatar-assets/capture/` (Playwright + `@napi-rs/canvas`, both devDeps):
 - `harness.html` loads the real `src/popup/avatar.js` in headless Chromium (chrome.* shimmed).
-- `node avatar-assets/capture/capture.cjs <tag>` → filmstrips, onion-skins, large key-frame montages.
-- `record.cjs` → `motion.webm` (real-motion clip). `rm_check.cjs` → asserts reduced-motion is static.
-- `overlay_size.cjs` → checks legibility at the 64×48 overlay size.
+- `node avatar-assets/capture/capture.cjs <tag>` → filmstrips, large key-frame montages (swipes+reactions).
+- `zoom.cjs` → large swipe-peak frames per direction (joint/connection check — verify the arm BENDS and
+  stays attached). `record.cjs` → `motion.webm`. `rm_check.cjs` → asserts reduced-motion is static.
+- `overlay_size.cjs` → legibility at the 64×48 overlay size.
+- `demos_harness.html` + `demos_capture.cjs` → run the REAL `zoneDemos.js`/`dosDonts.js` (not a replica)
+  and filmstrip the neutral/cursor/reset demos. **Supersedes** `verify_zones.cjs`/`verify_dosdonts.cjs`,
+  which are now STALE (they replicate the old translation rig — circular replicas; don't trust them).
 PNG/webm outputs are gitignored; the `.cjs`/`.html` tooling is committed.
 
 **Asset pipeline:** `avatar-assets/*.cjs` (register → flood-cut → consistent-forearm graft →
-finalize; `rig_assets.cjs` skin→glove luma gradient). New poses reuse the shared forearm — graft one
-new hand sprite at the common wrist; no new bodies/forearms.
+finalize; `rig_assets.cjs` skin→glove luma gradient). `recut_articulated.cjs` splits the baked bicep out
+of `base_body` into `upperarm.webp` (+ `cut_viz.cjs`/`grid_body.cjs` probes). New poses reuse the shared
+forearm — graft one new hand sprite at the common wrist; no new bodies/forearms/upper-arms.
 
 ---
 
