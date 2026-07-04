@@ -1,6 +1,9 @@
 import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
+// §3.1 parity: the preview MUST run the live engine's detection core and gates
+// (score threshold, directness, axis purity, pose agreement). A looser preview
+// teaches users gestures that then fail on real pages.
+import { GESTURES, POSE_PREFIX, detectSwipe, dominantPose, DETECT_SETTINGS, POSE_SCORE_MIN } from '../offscreen/detect.js';
 
-const GESTURES = { SWIPE_UP: 'SWIPE_UP', SWIPE_DOWN: 'SWIPE_DOWN', SWIPE_LEFT: 'SWIPE_LEFT', SWIPE_RIGHT: 'SWIPE_RIGHT', NONE: 'NONE' };
 const ACTION_LABELS = {
   SCROLL_UP: 'Scroll up', SCROLL_DOWN: 'Scroll down',
   GO_BACK: 'Go back', GO_FORWARD: 'Go forward',
@@ -9,11 +12,9 @@ const ACTION_LABELS = {
   NONE: 'Do nothing',
 };
 
-const BUFFER_SIZE    = 8;
-const COOLDOWN_MS    = 600;
-const VELOCITY_THRESHOLD = 0.12;
+const BUFFER_SIZE    = DETECT_SETTINGS.bufferSize;
+const COOLDOWN_MS    = DETECT_SETTINGS.cooldownMs;
 const TRAIL_LENGTH   = 16;
-const VIDEO_ASPECT   = 640 / 480;
 
 let deadZoneRadius = 0.10;
 let gestureRecognizer = null;
@@ -21,6 +22,7 @@ let lastGestureTime   = 0;
 const positionBuffer  = [];
 const wristTrail      = [];
 let waitingForReset   = false;
+let waitingForResetSince = 0;
 let deadZoneAnchor    = { x: 0.5, y: 0.5 };
 let pickModeActive    = false;
 let cursorMirrorX     = false;
@@ -148,29 +150,6 @@ async function init() {
   } catch (err) {
     console.error('wavr preview error:', err);
   }
-}
-
-function detectSwipe() {
-  if (positionBuffer.length < BUFFER_SIZE) return GESTURES.NONE;
-  const oldest = positionBuffer[0];
-  const newest = positionBuffer[positionBuffer.length - 1];
-  const dx  = newest.x - oldest.x;
-  const dy  = newest.y - oldest.y;
-  const dxA = dx * VIDEO_ASPECT;
-  const t   = VELOCITY_THRESHOLD;
-  if (Math.abs(dy) > Math.abs(dxA)) {
-    if (dy < -t) return GESTURES.SWIPE_UP;
-    if (dy > t)  return GESTURES.SWIPE_DOWN;
-  } else {
-    if (cursorMirrorX) {
-      if (dxA > t)  return GESTURES.SWIPE_LEFT;
-      if (dxA < -t) return GESTURES.SWIPE_RIGHT;
-    } else {
-      if (dxA < -t) return GESTURES.SWIPE_LEFT;
-      if (dxA > t)  return GESTURES.SWIPE_RIGHT;
-    }
-  }
-  return GESTURES.NONE;
 }
 
 // ── Canvas drawing ───────────────────────────────────────────────────────────
@@ -365,10 +344,14 @@ function processFrame() {
   if (results.landmarks?.length > 0) {
     const wrist = results.landmarks[0][0];
 
+    const now = Date.now();
+
+    // Reset gate — same physics as the live engine, incl. the 3 s auto-release
     if (waitingForReset) {
       const dx = wrist.x - deadZoneAnchor.x;
       const dy = wrist.y - deadZoneAnchor.y;
-      if (Math.sqrt(dx * dx + dy * dy) < deadZoneRadius) {
+      const timedOut = now - waitingForResetSince > 3000;
+      if (Math.sqrt(dx * dx + dy * dy) < deadZoneRadius || timedOut) {
         waitingForReset = false;
         positionBuffer.length = 0;
         wristTrail.length = 0;
@@ -380,36 +363,39 @@ function processFrame() {
       }
     }
 
-    positionBuffer.push({ x: wrist.x, y: wrist.y });
+    // Score-gated pose, exactly like the live engine: a low-confidence frame is
+    // 'None' and counts toward NO pose (it is never treated as an open palm).
+    const top  = results.gestures?.[0]?.[0];
+    const pose = (top?.score ?? 0) >= POSE_SCORE_MIN ? top.categoryName : 'None';
+
+    if (pose === 'Thumb_Up') {
+      indicator.textContent = '👍 Hold for cursor mode…';
+      drawOverlay(wrist.x, wrist.y);
+      return; // live engine skips buffering on thumb frames
+    }
+
+    positionBuffer.push({ x: wrist.x, y: wrist.y, pose });
     if (positionBuffer.length > BUFFER_SIZE) positionBuffer.shift();
     wristTrail.push({ x: wrist.x, y: wrist.y });
     if (wristTrail.length > TRAIL_LENGTH) wristTrail.shift();
 
     drawOverlay(wrist.x, wrist.y);
 
-    const pose = results.gestures?.[0]?.[0]?.categoryName ?? 'None';
-    const isOpen     = pose === 'Open_Palm' || pose === 'None';
-    const isClosed   = pose === 'Closed_Fist';
-    const isPointing = pose === 'Pointing_Up';
-    const isVictory  = pose === 'Victory';
-    const isThumbUp  = pose === 'Thumb_Up';
-
-    if (isThumbUp) {
-      indicator.textContent = '👍 Hold for cursor mode…';
-    } else if (isOpen || isClosed || isPointing || isVictory) {
-      const gesture = detectSwipe();
-      const now = Date.now();
-      if (gesture !== GESTURES.NONE && now - lastGestureTime > COOLDOWN_MS) {
+    const gesture = detectSwipe(positionBuffer, DETECT_SETTINGS);
+    if (gesture !== GESTURES.NONE && now - lastGestureTime > COOLDOWN_MS) {
+      // A4 gate: fire only under a confident, stable pose across the window
+      const firePose = dominantPose(positionBuffer, DETECT_SETTINGS);
+      if (firePose) {
         lastGestureTime = now;
         waitingForReset = true;
+        waitingForResetSince = now;
         positionBuffer.length = 0;
 
-        const prefix    = isClosed ? 'closed_' : isPointing ? 'pointing_' : isVictory ? 'victory_' : 'open_';
-        const mapKey    = prefix + gesture.toLowerCase();
+        const mapKey    = POSE_PREFIX[firePose] + gesture.toLowerCase();
         const action    = gestureMap[mapKey] || 'NONE';
-        const poseEmoji = isClosed ? '✊' : isPointing ? '☝' : isVictory ? '✌' : '🖐';
+        const POSE_EMOJI = { Open_Palm: '🖐', Closed_Fist: '✊', Pointing_Up: '☝', Victory: '✌' };
 
-        indicator.textContent = `${poseEmoji} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action}`;
+        indicator.textContent = `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action}`;
         previewArea.classList.remove('preview-flash');
         void previewArea.offsetWidth;
         previewArea.classList.add('preview-flash');

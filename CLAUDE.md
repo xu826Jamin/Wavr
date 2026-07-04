@@ -13,7 +13,7 @@
 **Push:** After every commit, push to `https://github.com/xu826Jamin/Wavr` (`git push origin main`).
 
 ## Notes
-- **Friction audit + cursor-mode root causes (2026-07-04, unfixed)** in [FRICTION_AUDIT_2026-07-04.md](FRICTION_AUDIT_2026-07-04.md) — cursor clicks: fist never fires (disarm on 'None' frames) + no ancestor walk in `isReliableClickTarget`; preview engine ≠ live engine; camera-error text hidden under canvas; wizard dead-ends. Real-browser E2E rig (loads built dist/ as an extension, fake camera) in [e2e/](e2e/).
+- **Friction audit (2026-07-04) — FIXED same day** in [FRICTION_AUDIT_2026-07-04.md](FRICTION_AUDIT_2026-07-04.md); see "Friction-audit fixes" summary below. Real-browser E2E rig (loads built dist/ as an extension, fake camera) in [e2e/](e2e/).
 - Consumer diagnosis summary saved in [CONSUMER_DIAGNOSIS_2026-06-04.md](CONSUMER_DIAGNOSIS_2026-06-04.md).
 - Prior usability plan archived at [plan_archive/PLAN_2026-06-04.md](plan_archive/PLAN_2026-06-04.md).
 - Consumer usability fixes (Phases A–E, 2026-06-05) — see summary below.
@@ -98,9 +98,11 @@ topbar (logo | share btn | status pill)
 tab-bar (Scroll Mode | Cursor Mode)
   panel[scroll]
     live-card (preview camera + canvas)
-    #intro (hero, mockup panel, achievement shelf)
-    #setup (3-step install guide)
-    #gestures (gesture reference cards)
+    #hero (canvas particles, showcase card)
+    #intro (bento grid: hero tile, count, features, camera, achievements)
+    #gesture-explorer (pose-chip + D-pad picker, mascot demo)
+    #setup (3-step guide: pin icon, toggle on/off + Alt+W, allow camera)
+    #tutorial (Dos & Don'ts avatar scenes)
     #settings (4-group accordion: Open Palm, Closed Fist, Pointing, Victory)
   panel[cursor]
     cursor intro
@@ -189,6 +191,56 @@ site-footer (fixed, "Made with ♥ by Wavr · v1.0.0")
 ### Phase E — Settings simplification
 - **E1 Advanced accordion**: Neutral zone anchor+size collapsed behind `<details>` in bento-camera tile; cursor zone sliders behind `<details>` in cursor live card. Mirror X stays visible at top level in both.
 - **E3 Labels**: "Active area for cursor control" is the cursor zone details summary. Neutral zone labels already in place from C3.
+
+---
+
+## Friction-audit fixes — implemented (2026-07-04)
+
+All findings from [FRICTION_AUDIT_2026-07-04.md](FRICTION_AUDIT_2026-07-04.md) fixed:
+
+### Cursor mode (§1)
+- **Click grace window** (`offscreen.js`): open→fist click no longer disarms on low-confidence
+  'None' transition frames — stays armed through `CLICK_ARM_GRACE_MS` (300 ms) of ambiguity;
+  only a confident pointing/victory pose (or grace expiry) disarms. This was the main reason
+  fist clicks "never fired".
+- **Ancestor walk for click targets** (`overlay.js`): `findReliableClickTarget()` walks up to 5
+  ancestors against `RELIABLE_TARGET_SEL` (a/button/input/… + ARIA roles) and dispatches on the
+  matched control — span-in-button and img-in-link now click (verified via
+  `e2e/cursor_click_test.cjs`).
+- **Thumb-hold dropout tolerance** (`offscreen.js`): a 👍 hold survives 'None' dropouts under
+  `THUMB_DROPOUT_MS` (150 ms) instead of restarting from zero on every sub-threshold frame.
+- **`THUMB_HOLD` message** (offscreen → background `routeToOverlayTab` → overlay): live hold
+  progress (0–1) rendered as a green scaleX bar (`.thumb-hold-bar`) in the gesture bar with
+  "keep holding…" text; progress 0 clears it. Sent every frame during a hold.
+- **Persistent cursor-mode indicator** (`overlay.js`): idle gesture-bar label becomes
+  "cursor mode · 🖐 move · ✊ click · hold 👍 to exit" while cursor mode is on
+  (`cursorModeActive`, self-healed from `CURSOR_STATE` for tabs that missed the mode change).
+- **Pointer events**: synthetic clicks dispatch `pointerdown/pointerup` (pointerId 1, type
+  'mouse') before the mouse events, for React UIs / video players.
+
+### Friction (§3)
+- **Preview = live engine** (`preview-detect.js`): imports `detectSwipe`/`dominantPose`/
+  `DETECT_SETTINGS`/`POSE_SCORE_MIN` from `src/offscreen/detect.js` (single source of truth —
+  `offscreen.js` uses the same exports; `test/detect.test.mjs` covers it). 'None' no longer
+  counts as open palm, all A4 gates + 3 s reset auto-release now apply in the preview, and the
+  old mirror-X swipe inversion (which the live engine never had) is gone.
+- **Camera errors visible** (`overlay.js`): `.cam-placeholder` has `z-index:2` + opaque bg;
+  `CAMERA_ERROR` clears `latestFrameImg` + canvas so the last frozen frame can't cover the
+  error; error class removed when frames resume.
+- **Wizard**: "Skip for now" with no camera goes straight to finish (no dead-end try-gesture
+  step); try-gesture step has an `.fr-tip` troubleshooting line; skip-camera finish scrolls to
+  `#setup`.
+- **Setup section**: rewritten for Web-Store installs — pin the icon, toolbar icon (or Alt+W)
+  is the on/off switch, camera prompt on first use. Alt+W now documented in the UI.
+- **Toolbar badge** (`background.js`): global green `ON` badge while enabled (`setGlobalBadge`),
+  cleared on disable/teardown — so enabling from a restricted page (chrome://newtab) visibly
+  does something. Restricted tabs still get the per-tab grey `OFF` badge (now with an
+  explanatory action title); per-tab overrides are cleared with `text: null` so the global
+  badge shows through.
+- **Gesture bar**: raw confidence scores removed from `GESTURE_DISPLAY` labels; share button
+  appears only on the 10th gesture of a tab session (then every 100th), not after every one.
+- **Coach hint** moved to top-left of the feed (no longer collides with the reaction mascot
+  bottom-right or the buffer bar).
 
 ---
 

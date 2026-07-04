@@ -58,14 +58,29 @@ async function closeOffscreen() {
   if (exists) await chrome.offscreen.closeDocument();
 }
 
+// Global ON badge: visible confirmation that the toggle worked even on pages where
+// the widget can't be injected (chrome://newtab etc.) — audit §3.5. Restricted tabs
+// override it with a per-tab grey 'OFF' (updatePageRestrictedBadge).
+function setGlobalBadge(enabled) {
+  chrome.action.setBadgeText({ text: enabled ? 'ON' : '' });
+  if (enabled) {
+    chrome.action.setBadgeBackgroundColor({ color: '#4ade80' });
+    chrome.action.setBadgeTextColor?.({ color: '#08240f' });
+  }
+}
+
 async function enableWavr() {
   await createOffscreen();
+  setGlobalBadge(true);
   showOverlayOnActiveTab();
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (active?.id != null) updatePageRestrictedBadge(active.id);
   chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: true }).catch(() => {});
 }
 
 async function disableWavr() {
   await closeOffscreen();
+  setGlobalBadge(false);
   overlayTabId = null;
   broadcastToTabs({ type: 'HIDE_OVERLAY' });
   chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
@@ -94,15 +109,19 @@ async function updatePageRestrictedBadge(tabId) {
   try {
     const exists = await chrome.offscreen.hasDocument();
     if (!exists) {
-      chrome.action.setBadgeText({ text: '', tabId });
+      // text: null clears the per-tab override so the global badge shows through
+      chrome.action.setBadgeText({ text: null, tabId });
+      chrome.action.setTitle({ title: null, tabId });
       return;
     }
     const tab = await chrome.tabs.get(tabId);
     if (isRestrictedUrl(tab.url)) {
       chrome.action.setBadgeText({ text: 'OFF', tabId });
       chrome.action.setBadgeBackgroundColor({ color: '#555', tabId });
+      chrome.action.setTitle({ title: "Wavr is on, but can't run on this page — switch to a regular website", tabId });
     } else {
-      chrome.action.setBadgeText({ text: '', tabId });
+      chrome.action.setBadgeText({ text: null, tabId });
+      chrome.action.setTitle({ title: null, tabId });
     }
   } catch { /* tab may have closed */ }
 }
@@ -342,7 +361,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
-  if (message.type === 'CURSOR_STATE' || message.type === 'CURSOR_CLICK') {
+  if (message.type === 'CURSOR_STATE' || message.type === 'CURSOR_CLICK' || message.type === 'THUMB_HOLD') {
     routeToOverlayTab(message);
     return false;
   }
@@ -507,6 +526,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
   chrome.alarms.clear('keepAlive');
+  setGlobalBadge(false);
   broadcastToTabs({ type: 'HIDE_OVERLAY' });
   chrome.runtime.sendMessage({ type: 'STATUS_CHANGED', enabled: false }).catch(() => {});
 });

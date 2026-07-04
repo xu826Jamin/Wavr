@@ -21,6 +21,21 @@ export const POSE_PREFIX = {
 // Scale x by W/H so both axes measure equal physical distance per unit.
 export const VIDEO_ASPECT = 640 / 480; // ≈ 1.333
 
+// Minimum classifier score for a pose to count as confident; below this a frame is 'None'.
+export const POSE_SCORE_MIN = 0.75;
+
+// The live engine's detection parameters. The options-page preview MUST use these
+// too — a preview that fires on looser physics teaches users gestures that then
+// fail on real pages (friction audit 2026-07-04 §3.1).
+export const DETECT_SETTINGS = {
+  cooldownMs: 600,
+  velocityThreshold: 0.12,
+  bufferSize: 8,
+  directness: 0.7, // min |net displacement| / |path travelled| on the dominant axis (A4)
+  axisPurity: 0.7, // max off-axis travel as a fraction of dominant-axis travel (A4)
+  poseAgree: 0.6,  // fraction of the buffer that must share one confident pose to fire (A4)
+};
+
 // Returns a GESTURES.* direction, or NONE. `buffer` is [{x, y, pose}], `settings`
 // supplies { bufferSize, velocityThreshold, directness }.
 export function detectSwipe(buffer, settings) {

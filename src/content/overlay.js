@@ -128,6 +128,10 @@ import { Avatar } from '../popup/avatar.js';
       align-items: center;
       justify-content: center;
       gap: 8px;
+      /* Must cover the canvas: camera errors are invisible if the last frozen
+         frame keeps painting over them (audit §3.2) */
+      z-index: 2;
+      background: #080808;
     }
     .cam-placeholder svg { opacity: 0.15; }
     .cam-placeholder .ph-text {
@@ -180,10 +184,11 @@ import { Avatar } from '../popup/avatar.js';
     }
     .gesture-bar.dim { color: #2a2a2a; }
     .coach-hint {
+      /* Top-left: keeps clear of the LIVE badge (top-right), the reaction mascot
+         (bottom-right) and the buffer bar (bottom-centre) — audit §3.8 */
       position: absolute;
-      bottom: 28px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 10px;
+      left: 10px;
       font-size: 9px;
       font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
       color: rgba(255,255,255,0.38);
@@ -209,6 +214,17 @@ import { Avatar } from '../popup/avatar.js';
     }
     .cooldown-bar.draining {
       animation: cooldownDrain 600ms linear forwards;
+    }
+    .thumb-hold-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: rgba(74,222,128,0.7);
+      transform-origin: left;
+      transform: scaleX(0);
+      pointer-events: none;
     }
     .gesture-idle-label {
       font-size: 9px;
@@ -409,6 +425,24 @@ import { Avatar } from '../popup/avatar.js';
   let cursorCY          = 0;
   let overlayMirrorX    = false;
   let advancedClickTargets = false;
+  let cursorModeActive  = false; // drives the persistent gesture-bar indicator (audit §1D)
+  let thumbHoldBar      = null;  // progress bar element while a 👍 hold is in flight
+  let gestureFireCount  = 0;     // share button is shown sparingly, not on every gesture (audit §3.7)
+
+  // Idle gesture-bar content. In cursor mode this is a persistent reminder of the
+  // controls and how to exit — previously nothing said cursor mode was still on.
+  function idleLabelHTML() {
+    return cursorModeActive
+      ? '<span class="gesture-idle-label" style="color:#4ade80;">cursor mode · 🖐 move · ✊ click · hold 👍 to exit</span>'
+      : '<span class="gesture-idle-label">Move hand into view</span>';
+  }
+
+  function resetGestureBar() {
+    if (!gestureBar) return;
+    thumbHoldBar = null;
+    gestureBar.innerHTML = idleLabelHTML();
+    gestureBar.classList.add('dim');
+  }
 
   function buildCursor() {
     if (document.getElementById('wavr-cursor-host')) return;
@@ -459,12 +493,20 @@ import { Avatar } from '../popup/avatar.js';
     return window.getComputedStyle(el).cursor === 'pointer';
   }
 
-  function isReliableClickTarget(el) {
-    if (!el) return false;
-    const tag = el.tagName.toLowerCase();
-    if (['a', 'button', 'input', 'label', 'select', 'textarea'].includes(tag)) return true;
-    const role = (el.getAttribute('role') || '').toLowerCase();
-    return ['button', 'link', 'checkbox', 'radio', 'menuitem', 'option', 'tab'].includes(role);
+  const RELIABLE_TARGET_SEL =
+    'a,button,input,label,select,textarea,' +
+    '[role=button],[role=link],[role=checkbox],[role=radio],[role=menuitem],[role=option],[role=tab]';
+
+  // Real buttons/links almost always have an inner element (span label, img
+  // thumbnail) directly under the cursor, so the exact topmost element check
+  // blocked standard controls (audit §1B). Walk up a bounded number of ancestors
+  // and return the control itself so the click is dispatched on it.
+  function findReliableClickTarget(el) {
+    let cur = el;
+    for (let i = 0; cur && cur.nodeType === 1 && i < 5; i++, cur = cur.parentElement) {
+      if (cur.matches(RELIABLE_TARGET_SEL)) return cur;
+    }
+    return null;
   }
 
   function showClickBlocked() {
@@ -476,12 +518,30 @@ import { Avatar } from '../popup/avatar.js';
     span.textContent = 'Not clickable here';
     gestureBar.appendChild(span);
     clearTimeout(gestureTimer);
-    gestureTimer = setTimeout(() => {
-      if (gestureBar) {
-        gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
-        gestureBar.classList.add('dim');
-      }
-    }, 1500);
+    gestureTimer = setTimeout(resetGestureBar, 1500);
+  }
+
+  // 👍 hold progress (audit §1C): the overlay previously showed nothing during the
+  // hold, so users never learned that holding longer toggles cursor mode.
+  function showThumbHold(progress) {
+    if (!gestureBar) return;
+    if (!progress) {
+      if (thumbHoldBar) resetGestureBar();
+      return;
+    }
+    if (!thumbHoldBar || !gestureBar.contains(thumbHoldBar)) {
+      gestureBar.innerHTML = '';
+      gestureBar.classList.remove('dim');
+      const txt = document.createElement('span');
+      txt.textContent = cursorModeActive ? '👍 keep holding to exit cursor mode…' : '👍 keep holding for cursor mode…';
+      thumbHoldBar = document.createElement('div');
+      thumbHoldBar.className = 'thumb-hold-bar';
+      gestureBar.append(txt, thumbHoldBar);
+    }
+    thumbHoldBar.style.transform = `scaleX(${progress})`;
+    // Safety net: if progress messages stop arriving (hand left frame), reset.
+    clearTimeout(gestureTimer);
+    gestureTimer = setTimeout(resetGestureBar, 800);
   }
 
   function updateCursor(state) {
@@ -517,8 +577,9 @@ import { Avatar } from '../popup/avatar.js';
     const sx = x * window.innerWidth;
     const sy = y * window.innerHeight;
     const el = document.elementFromPoint(sx, sy);
+    const target = advancedClickTargets ? el : findReliableClickTarget(el);
 
-    if (!advancedClickTargets && !isReliableClickTarget(el)) {
+    if (!target) {
       showClickBlocked();
       if (cursorDot) {
         cursorDot.classList.add('blocked');
@@ -527,11 +588,16 @@ import { Avatar } from '../popup/avatar.js';
       return;
     }
 
-    if (el) {
-      el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: sx, clientY: sy }));
-      el.dispatchEvent(new MouseEvent('mouseup',   { bubbles: true, cancelable: true, clientX: sx, clientY: sy }));
-      el.dispatchEvent(new MouseEvent('click',     { bubbles: true, cancelable: true, clientX: sx, clientY: sy }));
+    const opts = { bubbles: true, cancelable: true, clientX: sx, clientY: sy };
+    // Pointer events first: many apps (video players, React UIs) listen for
+    // pointerdown/up and ignore plain mouse events (audit §1D).
+    if (typeof PointerEvent === 'function') {
+      target.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
+      target.dispatchEvent(new PointerEvent('pointerup',   { ...opts, pointerId: 1, pointerType: 'mouse', isPrimary: true }));
     }
+    target.dispatchEvent(new MouseEvent('mousedown', opts));
+    target.dispatchEvent(new MouseEvent('mouseup',   opts));
+    target.dispatchEvent(new MouseEvent('click',     opts));
     if (cursorDot) {
       cursorDot.classList.remove('dwelling', 'clicking');
       void cursorDot.offsetWidth;
@@ -664,7 +730,7 @@ import { Avatar } from '../popup/avatar.js';
     gestureBar.setAttribute('role', 'status');
     gestureBar.setAttribute('aria-live', 'polite');
     gestureBar.setAttribute('aria-label', 'Gesture status');
-    gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
+    gestureBar.innerHTML = idleLabelHTML();
 
     // Settings button
     const settingsBtn = document.createElement('button');
@@ -901,30 +967,32 @@ import { Avatar } from '../popup/avatar.js';
     const txt = document.createElement('span');
     txt.style.flex = '1';
     txt.textContent = label;
+    gestureBar.appendChild(txt);
 
-    const shareBtn = document.createElement('button');
-    shareBtn.className = 'gesture-share-btn';
-    shareBtn.textContent = '↗ share';
-    shareBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const text = encodeURIComponent('Just waved to scroll Chrome 🖐 — no touching required. Try Wavr:');
-      const url  = encodeURIComponent(WAVR_CWS_URL);
-      chrome.runtime.sendMessage({ type: 'OPEN_URL', url: `https://twitter.com/intent/tweet?text=${text}&url=${url}` });
-    });
+    // Share button only occasionally (10th gesture of the session, then rarely) —
+    // showing it after every gesture read as nagging (audit §3.7).
+    gestureFireCount++;
+    if (gestureFireCount % 100 === 10) {
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'gesture-share-btn';
+      shareBtn.textContent = '↗ share';
+      shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const text = encodeURIComponent('Just waved to scroll Chrome 🖐 — no touching required. Try Wavr:');
+        const url  = encodeURIComponent(WAVR_CWS_URL);
+        chrome.runtime.sendMessage({ type: 'OPEN_URL', url: `https://twitter.com/intent/tweet?text=${text}&url=${url}` });
+      });
+      gestureBar.appendChild(shareBtn);
+    }
 
     const cooldownBar = document.createElement('div');
     cooldownBar.className = 'cooldown-bar';
-    gestureBar.append(txt, shareBtn, cooldownBar);
+    gestureBar.appendChild(cooldownBar);
     void cooldownBar.offsetWidth;
     cooldownBar.classList.add('draining');
 
     clearTimeout(gestureTimer);
-    gestureTimer = setTimeout(() => {
-      if (gestureBar) {
-        gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
-        gestureBar.classList.add('dim');
-      }
-    }, 1500);
+    gestureTimer = setTimeout(resetGestureBar, 1500);
 
     const w = shadow?.querySelector('.widget');
     if (w) {
@@ -961,12 +1029,7 @@ import { Avatar } from '../popup/avatar.js';
     const dimBtn = document.createElement('button');
     dimBtn.style.cssText = 'padding:2px 5px;background:transparent;border:1px solid #252525;border-radius:4px;color:#444;font-size:9px;cursor:pointer;flex-shrink:0;font-family:inherit;';
     dimBtn.textContent = '×';
-    dimBtn.addEventListener('click', () => {
-      if (gestureBar) {
-        gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
-        gestureBar.classList.add('dim');
-      }
-    });
+    dimBtn.addEventListener('click', resetGestureBar);
 
     row.append(text, openBtn, dimBtn);
     gestureBar.appendChild(row);
@@ -1044,7 +1107,10 @@ import { Avatar } from '../popup/avatar.js';
       const img = new Image();
       img.onload = () => {
         latestFrameImg = img;
-        if (camPlaceholder) camPlaceholder.style.display = 'none';
+        if (camPlaceholder) {
+          camPlaceholder.style.display = 'none';
+          camPlaceholder.classList.remove('cam-error');
+        }
         drawFrame(img);
         if (!liveBadgeAdded && shadow) {
           const cam = shadow.querySelector('.camera-area');
@@ -1060,8 +1126,11 @@ import { Avatar } from '../popup/avatar.js';
       img.src = message.data;
     }
     if (message.type === 'START_OVERLAY')     showWidget();
-    if (message.type === 'HIDE_OVERLAY')    { hideWidget(); hideCursor(); }
+    if (message.type === 'HIDE_OVERLAY')    { hideWidget(); hideCursor(); cursorModeActive = false; }
     if (message.type === 'CAMERA_ERROR') {
+      // Drop the frozen frame so it can't repaint over the error (audit §3.2)
+      latestFrameImg = null;
+      if (canvasEl && canvasCtx) canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
       if (camPlaceholder) {
         camPlaceholder.classList.add('cam-error');
         const txt = camPlaceholder.querySelector('.ph-text');
@@ -1069,6 +1138,7 @@ import { Avatar } from '../popup/avatar.js';
         camPlaceholder.style.display = '';
       }
     }
+    if (message.type === 'THUMB_HOLD')        showThumbHold(message.progress);
     if (message.type === 'GESTURE_DISPLAY') {
       showGesture(message.label);
       if (message.pose && message.dir) showReactAvatar(message.pose, message.dir);
@@ -1083,19 +1153,20 @@ import { Avatar } from '../popup/avatar.js';
       noopSpan.textContent = 'No scroll target here';
       gestureBar.appendChild(noopSpan);
       clearTimeout(gestureTimer);
-      gestureTimer = setTimeout(() => {
-        if (gestureBar) {
-          gestureBar.innerHTML = '<span class="gesture-idle-label">Move hand into view</span>';
-          gestureBar.classList.add('dim');
-        }
-      }, 1500);
+      gestureTimer = setTimeout(resetGestureBar, 1500);
     }
     if (message.type === 'OVERLAY_STATE')     drawState(message);
     if (message.type === 'SET_MIRROR_X')      setMirrorX(message.mirrorX);
     if (message.type === 'CURSOR_MODE_CHANGE') {
+      cursorModeActive = !!message.active;
       if (message.active) buildCursor(); else hideCursor();
     }
-    if (message.type === 'CURSOR_STATE') { updateCursor(message); drawCursorZone(message); }
+    if (message.type === 'CURSOR_STATE') {
+      // Self-heal for tabs that never saw CURSOR_MODE_CHANGE (loaded mid-mode)
+      if (!cursorModeActive) { cursorModeActive = true; resetGestureBar(); }
+      updateCursor(message);
+      drawCursorZone(message);
+    }
     if (message.type === 'CURSOR_CLICK')  fireCursorClick(message.x, message.y);
   }
   chrome.runtime.onMessage.addListener(handleMessage);

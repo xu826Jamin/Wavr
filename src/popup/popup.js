@@ -527,7 +527,15 @@ function frFinish() {
   chrome.storage.local.set({ onboardingComplete: true });
   // B5 backstop: if the camera was granted, make sure the live controller is on
   // when onboarding closes (skip-camera users have no previewStream → stay off).
-  if (previewStream) ensureEnabled();
+  if (previewStream) {
+    ensureEnabled();
+  } else {
+    // Skip-camera users land with Wavr OFF and no idea the toolbar icon is the
+    // switch — take them straight to the Setup section that explains it (§3.4).
+    setTimeout(() => {
+      document.getElementById('setup')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 450);
+  }
 }
 
 // Focus trap: keep keyboard focus inside the wizard while it's open
@@ -573,10 +581,13 @@ document.getElementById('frAllowCamera').addEventListener('click', async () => {
 });
 
 document.getElementById('frSkipCamera').addEventListener('click', () => {
+  // Without a camera, "Try your first gesture" is a black box that can never
+  // pass — jump straight to finish instead (audit §3.3).
+  if (!previewStream) { frFinish(); return; }
   const frVid = document.getElementById('frVideo');
-  if (frVid && previewStream) frVid.srcObject = previewStream;
+  if (frVid) frVid.srcObject = previewStream;
   frGoToStep(3);
-  if (previewStream) frWatchGesture();
+  frWatchGesture();
 });
 
 document.getElementById('frSkipGesture').addEventListener('click', frFinish);

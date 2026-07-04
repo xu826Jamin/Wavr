@@ -1,5 +1,5 @@
 import { GestureRecognizer, FilesetResolver } from '@mediapipe/tasks-vision';
-import { GESTURES, POSE_PREFIX, detectSwipe, dominantPose } from './detect.js';
+import { GESTURES, POSE_PREFIX, detectSwipe, dominantPose, DETECT_SETTINGS, POSE_SCORE_MIN } from './detect.js';
 
 const DEV_MODE = typeof chrome !== 'undefined' &&
   chrome.runtime?.getManifest?.()?.version?.includes('dev');
@@ -16,14 +16,7 @@ const ACTION_LABELS = {
   NEW_TAB: 'New tab', CLOSE_TAB: 'Close tab',
   NONE: 'Do nothing',
 };
-const settings = {
-  cooldownMs: 600,
-  velocityThreshold: 0.12,
-  bufferSize: 8,
-  directness: 0.7, // min |net displacement| / |path travelled| on the dominant axis (A4)
-  axisPurity: 0.7, // max off-axis travel as a fraction of dominant-axis travel (A4)
-  poseAgree: 0.6,  // fraction of the buffer that must share one confident pose to fire (A4)
-};
+const settings = DETECT_SETTINGS;
 
 // POSE_PREFIX is imported from detect.js. Emoji are display-only, used here.
 const POSE_EMOJI = { Open_Palm: '🖐', Closed_Fist: '✊', Pointing_Up: '☝', Victory: '✌' };
@@ -80,14 +73,22 @@ let smoothY       = 0.5;
 const EMA         = 0.28;
 let handWasOpen   = true;
 let handOpenSince = 0;
+let handOpenLastSeen = 0; // last frame with a confident open palm (arms the grace window)
 let lastClickTime = 0;
 let CLICK_DWELL_MS    = 200;
 const CLICK_COOLDOWN_MS = 500;
+// Closing a hand takes ~100–300 ms of ambiguous 'None' frames; the click stays
+// armed through this window so open→fist actually fires (audit §1A).
+const CLICK_ARM_GRACE_MS = 300;
 
 // ── Thumb Up hold state ───────────────────────────────────────────────────────
-let thumbUpStart   = 0;
-let thumbUpToggled = false; // blocks re-trigger until thumb is lowered
+let thumbUpStart    = 0;
+let thumbUpLastSeen = 0; // last frame with a confident Thumb_Up
+let thumbUpToggled  = false; // blocks re-trigger until thumb is lowered
 let THUMB_UP_HOLD_MS = 400;
+// MediaPipe scores Thumb_Up erratically; ambiguous frames shorter than this do
+// not restart the hold (audit §1C).
+const THUMB_DROPOUT_MS = 150;
 
 const video = document.getElementById('video');
 
@@ -190,6 +191,9 @@ function processFrame() {
     positionBuffer.length = 0;
     waitingForReset = false;
     waitingForResetSince = 0;
+    if (thumbUpStart && !thumbUpToggled) {
+      chrome.runtime.sendMessage({ type: 'THUMB_HOLD', progress: 0 }).catch(() => {});
+    }
     thumbUpStart   = 0;
     thumbUpToggled = false;
     lastPose       = null;
@@ -211,15 +215,20 @@ function processFrame() {
   // Only the dominant (first) hand is processed; a second hand is intentionally ignored.
   const wrist     = results.landmarks[0][0];
   const topGesture = results.gestures?.[0]?.[0];
-  const pose      = (topGesture?.score ?? 0) >= 0.75 ? topGesture.categoryName : 'None';
+  const pose      = (topGesture?.score ?? 0) >= POSE_SCORE_MIN ? topGesture.categoryName : 'None';
 
   const isOpen     = pose === 'Open_Palm'; // A4: ambiguous 'None' is no longer treated as open
   const isClosed   = pose === 'Closed_Fist';
   const isThumbUp  = pose === 'Thumb_Up';
 
   // ── Thumb Up hold → toggle cursor mode ───────────────────────────────────────
-  if (isThumbUp) {
+  // A hold in progress survives short ambiguous ('None') dropouts; only a confident
+  // different pose or a long dropout restarts it (audit §1C).
+  const thumbHolding = thumbUpStart > 0 && !thumbUpToggled &&
+    pose === 'None' && now - thumbUpLastSeen < THUMB_DROPOUT_MS;
+  if (isThumbUp || thumbHolding) {
     if (!thumbUpStart) thumbUpStart = now;
+    if (isThumbUp) thumbUpLastSeen = now;
     if (!thumbUpToggled && now - thumbUpStart > THUMB_UP_HOLD_MS && now - lastGestureTime > settings.cooldownMs) {
       lastGestureTime = now;
       thumbUpStart    = 0;
@@ -227,15 +236,27 @@ function processFrame() {
       cursorMode      = !cursorMode;
       if (cursorMode) {
         mapCursorPosition(wrist);
-        handWasOpen   = isOpen;
-        handOpenSince = now;
+        handWasOpen      = isOpen;
+        handOpenSince    = now;
+        handOpenLastSeen = now;
       }
+      chrome.runtime.sendMessage({ type: 'THUMB_HOLD', progress: 0 }).catch(() => {});
       chrome.runtime.sendMessage({ type: 'CURSOR_MODE_CHANGE', active: cursorMode });
       chrome.runtime.sendMessage({ type: 'GESTURE_DISPLAY', label: cursorMode ? '👍 Cursor ON' : '👍 Cursor OFF' });
+    } else if (!thumbUpToggled) {
+      // Live hold progress in the on-page gesture bar, so users learn that holding
+      // longer works (the overlay previously showed nothing during the hold).
+      chrome.runtime.sendMessage({
+        type: 'THUMB_HOLD',
+        progress: Math.min((now - thumbUpStart) / THUMB_UP_HOLD_MS, 1),
+      }).catch(() => {});
     }
     lastPose = null; // prevent false pose-change on thumb-up frames
     return;
   } else {
+    if (thumbUpStart && !thumbUpToggled) {
+      chrome.runtime.sendMessage({ type: 'THUMB_HOLD', progress: 0 }).catch(() => {});
+    }
     thumbUpStart   = 0;
     thumbUpToggled = false;
   }
@@ -248,20 +269,25 @@ function processFrame() {
     // Cursor position — always tracks wrist (open palm is the "move" state)
     mapCursorPosition(wrist);
 
-    // Click logic: open palm arms the click; only open-palm → fist fires a click
+    // Click logic: open palm arms the click; open-palm → fist fires it. The frames
+    // between open and fist are low-confidence 'None' — they must NOT disarm, or
+    // the fist almost never lands while still armed (audit §1A). Only a confident
+    // different pose (pointing/victory) or a long ambiguity window disarms.
     if (isOpen) {
       if (!handWasOpen) handOpenSince = now;
-      handWasOpen = true;
+      handWasOpen      = true;
+      handOpenLastSeen = now;
     } else if (isClosed) {
       if (handWasOpen && (now - handOpenSince > CLICK_DWELL_MS) && (now - lastClickTime > CLICK_COOLDOWN_MS)) {
         lastClickTime = now;
-        handWasOpen   = false;
         chrome.runtime.sendMessage({ type: 'CURSOR_CLICK', x: smoothX, y: smoothY });
-      } else {
-        handWasOpen = false;
       }
+      handWasOpen = false;
+    } else if (pose === 'None') {
+      // Mid-transition ambiguity: stay armed within the grace window
+      if (handWasOpen && now - handOpenLastSeen > CLICK_ARM_GRACE_MS) handWasOpen = false;
     } else {
-      // Pointing, victory, etc. — disarm click so fist after these doesn't click
+      // Confident pointing/victory — disarm so a fist after these doesn't click
       handWasOpen = false;
     }
 
@@ -305,11 +331,10 @@ function processFrame() {
         const action    = gestureMap[prefix + gesture.toLowerCase()] || 'NONE';
 
         if (action !== 'NONE') {
-          const score = topGesture?.score ?? 0;
           chrome.runtime.sendMessage({ type: 'GESTURE_DETECTED', gesture, action });
           chrome.runtime.sendMessage({
             type: 'GESTURE_DISPLAY',
-            label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
+            label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action}`,
             pose: POSE_PREFIX[firePose].slice(0, -1),                 // avatar reaction-confirmation
             dir: gesture.toLowerCase().replace('swipe_', ''),
           });
@@ -384,11 +409,10 @@ function processFrame() {
       const mapKey = POSE_PREFIX[firePose] + gesture.toLowerCase();
       const action = gestureMap[mapKey] || 'NONE';
 
-      const score = topGesture?.score ?? 0;
       chrome.runtime.sendMessage({ type: 'GESTURE_DETECTED', gesture, action });
       chrome.runtime.sendMessage({
         type: 'GESTURE_DISPLAY',
-        label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action} (${score.toFixed(2)})`,
+        label: `${POSE_EMOJI[firePose]} ${gesture.replace('_', ' ')} → ${ACTION_LABELS[action] || action}`,
         pose: POSE_PREFIX[firePose].slice(0, -1),                     // avatar reaction-confirmation
         dir: gesture.toLowerCase().replace('swipe_', ''),
       });

@@ -876,6 +876,7 @@
     }
     .fr-btn-skip:hover { color: #888; }
     .fr-cam-err { font-size: 13px; color: #f87171; margin-top: 12px; min-height: 18px; }
+    .fr-tip { font-size: 12px; color: #555; line-height: 1.6; margin-top: 10px; }
     .fr-video-wrap {
       position: relative; width: 100%; max-width: 360px; aspect-ratio: 4/3;
       background: #111; border: 1px solid #222; border-radius: 14px;
@@ -2527,6 +2528,7 @@
         <video id="frVideo" autoplay playsinline muted></video>
         <div class="fr-badge" id="frGestureBadge"></div>
       </div>
+      <p class="fr-tip">Hand not detected? Keep it at arm's length, well lit, and fully inside the frame.</p>
       <button class="fr-btn-skip" id="frSkipGesture">Skip →</button>
     </div>
   </div>
@@ -2836,32 +2838,32 @@
       <section id="setup">
         <div class="section-eyebrow">First Time</div>
         <h2 class="section-heading reveal" data-reveal-i="0">Setup</h2>
-        <p class="section-sub">Grant camera permission once. You only need to do this the first time.</p>
+        <p class="section-sub">The Wavr toolbar icon is the on/off switch. Set it up once and you're waving.</p>
 
         <div class="step-grid">
           <div class="step-card reveal" data-reveal-i="0">
             <div class="step-num">1</div>
-            <div class="step-icon">🌐</div>
-            <div class="step-title">Open Extensions</div>
-            <div class="step-desc">Navigate to <code>chrome://extensions</code> in the address bar.</div>
+            <div class="step-icon">🧩</div>
+            <div class="step-title">Pin Wavr</div>
+            <div class="step-desc">Click the puzzle-piece icon next to the address bar and pin <strong>Wavr</strong> to your toolbar.</div>
           </div>
           <div class="step-card reveal" data-reveal-i="1">
             <div class="step-num">2</div>
-            <div class="step-icon">🔍</div>
-            <div class="step-title">Find Wavr</div>
-            <div class="step-desc">Locate Wavr in the list and flip it on.</div>
+            <div class="step-icon">👆</div>
+            <div class="step-title">Click to turn on</div>
+            <div class="step-desc">Click the Wavr icon — or press <code>Alt+W</code> — anytime to toggle Wavr on and off.</div>
           </div>
           <div class="step-card reveal" data-reveal-i="2">
             <div class="step-num">3</div>
             <div class="step-icon">📸</div>
-            <div class="step-title">Allow Camera</div>
-            <div class="step-desc">Under <strong>Camera</strong>, select <strong>Allow</strong>. Then click the toolbar icon to activate.</div>
+            <div class="step-title">Allow camera</div>
+            <div class="step-desc">Chrome asks for camera access the first time. Everything stays on your device — nothing is recorded or uploaded.</div>
           </div>
         </div>
 
         <div class="setup-note reveal" data-reveal-i="3">
           <span class="note-icon">👆</span>
-          <span class="note-text">To start Wavr on a supported page, <strong>click the Wavr icon in your browser toolbar</strong> to turn it on. It stays off on restricted pages like <code>chrome://</code>, the Chrome Web Store, and PDFs.</span>
+          <span class="note-text"><strong>The toolbar icon is the on/off switch</strong> (shortcut: <code>Alt+W</code>). Wavr stays off on restricted pages like <code>chrome://</code>, the Chrome Web Store, and PDFs — the icon shows a grey <code>OFF</code> badge there.</span>
         </div>
       </section>
 

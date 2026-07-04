@@ -1,10 +1,14 @@
 # Consumer friction audit + cursor-mode diagnosis — 2026-07-04 (v2.2.2)
 
+> **STATUS: ALL FIXED (2026-07-04, same day).** Every finding below (§1 A–D, §3 1–8) was
+> addressed — see "Friction-audit fixes" in [CLAUDE.md](CLAUDE.md) for the change list.
+> §1B re-verified with `e2e/cursor_click_test.cjs`: span-in-button and img-in-link now click.
+> This document is kept as the diagnosis record.
+
 A full new-user runthrough of Wavr in a real browser, plus a root-cause diagnosis of the
 "cursor mode doesn't work" complaint. Everything here was observed by loading the **built
 `dist/` as a real extension** in Chromium (Playwright, fake camera) — not by code reading
-alone. The rig lives in [`e2e/`](e2e/) (see "Repro tooling" at the bottom). Nothing in this
-document is fixed yet unless marked otherwise.
+alone. The rig lives in [`e2e/`](e2e/) (see "Repro tooling" at the bottom).
 
 ---
 
