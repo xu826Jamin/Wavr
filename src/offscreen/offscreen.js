@@ -47,9 +47,11 @@ let lastStateTime = 0;
 // ── Idle auto-pause (A1) ───────────────────────────────────────────────────────
 // recognizeForVideo is expensive; running it every 33ms with no hand present is
 // pure battery/heat drain. After IDLE_AFTER_MS with no landmarks we throttle the
-// inference loop to IDLE_FRAME_MS and stop relaying VIDEO_FRAME (the overlay just
-// freezes on its last frame — harmless, no hand to track). Full rate resumes the
-// instant a hand reappears.
+// inference loop to IDLE_FRAME_MS. The VIDEO_FRAME relay must NOT stop while idle
+// — a stopped relay freezes the PiP canvas on its last frame under a "● LIVE"
+// badge, which users read as the extension crashing (this fired on every startup,
+// since idle begins 4s after enable if no hand is up yet). Instead the relay drops
+// to ~3 fps while idle. Full rate resumes the instant a hand reappears.
 const ACTIVE_FRAME_MS = 33;
 const IDLE_FRAME_MS    = 300;
 const IDLE_AFTER_MS    = 4000;
@@ -144,8 +146,11 @@ async function init() {
     frameCanvas.width  = 320;
     frameCanvas.height = 240;
     const frameCtx = frameCanvas.getContext('2d', { willReadFrequently: true });
+    let relayTick = 0;
     setInterval(() => {
-      if (idle || video.readyState < 2) return; // A1: stop relay while idle
+      relayTick++;
+      if (video.readyState < 2) return;
+      if (idle && relayTick % 3 !== 0) return; // A1: idle drops relay to ~3 fps, never to 0
       frameCtx.drawImage(video, 0, 0, 320, 240);
       chrome.runtime.sendMessage({
         type: 'VIDEO_FRAME',
