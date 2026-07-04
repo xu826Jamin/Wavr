@@ -13,6 +13,7 @@
 **Push:** After every commit, push to `https://github.com/xu826Jamin/Wavr` (`git push origin main`).
 
 ## Notes
+- **Friction audit + cursor-mode root causes (2026-07-04, unfixed)** in [FRICTION_AUDIT_2026-07-04.md](FRICTION_AUDIT_2026-07-04.md) — cursor clicks: fist never fires (disarm on 'None' frames) + no ancestor walk in `isReliableClickTarget`; preview engine ≠ live engine; camera-error text hidden under canvas; wizard dead-ends. Real-browser E2E rig (loads built dist/ as an extension, fake camera) in [e2e/](e2e/).
 - Consumer diagnosis summary saved in [CONSUMER_DIAGNOSIS_2026-06-04.md](CONSUMER_DIAGNOSIS_2026-06-04.md).
 - Prior usability plan archived at [plan_archive/PLAN_2026-06-04.md](plan_archive/PLAN_2026-06-04.md).
 - Consumer usability fixes (Phases A–E, 2026-06-05) — see summary below.

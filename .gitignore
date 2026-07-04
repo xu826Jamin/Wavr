@@ -32,3 +32,6 @@ avatar-assets/**/*.webm
 
 # Perf profiler raw output (regenerable; keep baseline.md)
 perf/*.json
+
+# E2E rig outputs (regenerable screenshots; keep the .cjs scripts)
+e2e/**/*.png
