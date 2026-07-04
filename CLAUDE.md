@@ -88,7 +88,7 @@ const WAVR_CWS_URL = 'https://chromewebstore.google.com/detail/Wavr/mekfjddabogi
 Extension ID: `mekfjddabogijjildgiiikkibdmekhpo`.
 
 When bumping versions, update `manifest.json` `version` **and** both `popup.html` labels (the
-`.footer-version` span and the `#intro` `.section-eyebrow`). Current: **v2.2.2**.
+`.footer-version` span and the `#intro` `.section-eyebrow`). Current: **v2.2.3**.
 
 ## UI structure (popup.html)
 
